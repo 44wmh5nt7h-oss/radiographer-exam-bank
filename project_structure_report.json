@@ -1,0 +1,418 @@
+{
+  "project_name": "radiographer-exam-bank",
+  "report_type": "project_structure_inventory",
+  "generated_on": "2026-05-11",
+  "scope": "專案內主要資料夾、核心檔案、功能角色、對應 UI/UX 作用整合統整",
+  "notes": [
+    "此報告只做結構盤點與功能說明，不代表逐一列出所有大型圖片檔或所有解壓縮原始檔。",
+    "UI/UX 對應以目前 React + Vite 前端實際使用到的程式碼為主。",
+    "題庫主資料來源目前為 src/data/questions.json。"
+  ],
+  "project_summary": {
+    "tech_stack": {
+      "frontend": ["React 19", "React Router DOM", "Vite 8", "Tailwind CSS 4"],
+      "runtime": "Node.js",
+      "support_scripts": ["Python 題庫轉換腳本"]
+    },
+    "app_purpose": "醫事放射師國考歷屆題庫與正式模擬測驗網站",
+    "current_data_summary": {
+      "question_count": 13598,
+      "image_question_count": 917,
+      "table_question_count": 0,
+      "upload_image_count": 13612
+    }
+  },
+  "root_level": {
+    "files": [
+      {
+        "path": "package.json",
+        "type": "project_config",
+        "purpose": "定義專案名稱、scripts、依賴套件。",
+        "ui_ux_mapping": "間接影響整個前端啟動、建置與預覽流程。"
+      },
+      {
+        "path": "package-lock.json",
+        "type": "dependency_lockfile",
+        "purpose": "鎖定 npm 安裝版本，確保部署環境一致。",
+        "ui_ux_mapping": "間接影響網站穩定性與可重現性。"
+      },
+      {
+        "path": "vite.config.js",
+        "type": "build_config",
+        "purpose": "設定 Vite、React plugin、Tailwind plugin 與 dev server allowedHosts/host。",
+        "ui_ux_mapping": "影響本機開發、ngrok 外部連線與前端打包行為。"
+      },
+      {
+        "path": "tailwind.config.js",
+        "type": "style_config",
+        "purpose": "Tailwind 掃描範圍與樣式編譯設定。",
+        "ui_ux_mapping": "影響整個網站 UI 樣式產生。"
+      },
+      {
+        "path": "postcss.config.js",
+        "type": "style_config",
+        "purpose": "PostCSS 設定檔。",
+        "ui_ux_mapping": "間接支援樣式編譯。"
+      },
+      {
+        "path": "index.html",
+        "type": "entry_html",
+        "purpose": "Vite HTML 入口，掛載 React root。",
+        "ui_ux_mapping": "提供整個 SPA 的載入入口。"
+      },
+      {
+        "path": "README.md",
+        "type": "documentation",
+        "purpose": "簡述專案用途與開發/建置指令。",
+        "ui_ux_mapping": "無直接 UI 功能，屬開發說明。"
+      },
+      {
+        "path": ".gitignore",
+        "type": "repo_ignore_config",
+        "purpose": "排除不應進版控的依賴、暫存、快取與環境檔。",
+        "ui_ux_mapping": "無直接 UI 功能，屬專案維運設定。"
+      },
+      {
+        "path": ".vercelignore",
+        "type": "deploy_ignore_config",
+        "purpose": "排除不應上傳到 Vercel 的大型或暫存資料夾與輸出檔。",
+        "ui_ux_mapping": "無直接 UI 功能，屬部署體積與穩定性管理。"
+      },
+      {
+        "path": ".env.local",
+        "type": "local_env",
+        "purpose": "本機環境變數。",
+        "ui_ux_mapping": "無法從內容判斷具體前端用途，但通常屬本機或部署設定。"
+      },
+      {
+        "path": "convert_exam_data_to_json.py",
+        "type": "data_pipeline_script",
+        "purpose": "把原始考選部題答資料整理成結構化 JSON，並輸出圖片資產與統計。",
+        "ui_ux_mapping": "不直接參與 UI，但決定題庫資料品質、圖片連結與內容完整性。"
+      },
+      {
+        "path": "output.json",
+        "type": "generated_data_snapshot",
+        "purpose": "轉換腳本輸出的完整題庫快照。",
+        "ui_ux_mapping": "目前不直接被前端 import，屬資料處理中繼輸出。"
+      },
+      {
+        "path": "errors.json",
+        "type": "generated_data_report",
+        "purpose": "轉換腳本解析失敗、答案缺漏、圖片問題等錯誤報告。",
+        "ui_ux_mapping": "無直接 UI 功能，屬資料校正追蹤。"
+      },
+      {
+        "path": "summary.json",
+        "type": "generated_data_report",
+        "purpose": "轉換腳本統計輸出，例如題數、科目、圖片數量、錯誤數。",
+        "ui_ux_mapping": "無直接 UI 功能，屬資料盤點。"
+      }
+    ],
+    "directories": [
+      {
+        "path": "src",
+        "size": "261M",
+        "purpose": "React 前端主程式碼、題庫資料、靜態上傳圖片與工具函式。",
+        "ui_ux_mapping": "整個網站的實際畫面、互動、路由與本地資料來源。"
+      },
+      {
+        "path": "public",
+        "size": "12K",
+        "purpose": "靜態公開資產。",
+        "ui_ux_mapping": "目前主要提供 favicon。"
+      },
+      {
+        "path": "docs",
+        "size": "12K",
+        "purpose": "專案說明、資料格式與待辦事項文件。",
+        "ui_ux_mapping": "無直接 UI 功能，屬專案知識文件。"
+      },
+      {
+        "path": "assets",
+        "size": "114M",
+        "purpose": "較早期的圖片輸出資產資料夾。",
+        "ui_ux_mapping": "目前前端主路徑已改為 src/uploads；此資料夾屬歷史圖片輸出保留。"
+      },
+      {
+        "path": "src/uploads",
+        "size": "114M",
+        "purpose": "目前前端實際引用的考題圖片資產目錄。",
+        "ui_ux_mapping": "題幹圖片、選項圖片的實際 UI 顯示來源。"
+      },
+      {
+        "path": "assets 2",
+        "size": "8.1M",
+        "purpose": "歷史重複或備份型圖片資產資料夾。",
+        "ui_ux_mapping": "目前前端不依賴此資料夾。"
+      },
+      {
+        "path": "_work_extracted",
+        "size": "145M",
+        "purpose": "原始 zip/PDF 題答資料的解壓與轉換工作目錄。",
+        "ui_ux_mapping": "不直接顯示於網站，屬資料處理暫存工作區。"
+      },
+      {
+        "path": "_work_extracted 2",
+        "purpose": "疑似歷史解壓副本或額外工作目錄。",
+        "ui_ux_mapping": "不直接顯示於網站，屬資料處理殘留資料夾。"
+      },
+      {
+        "path": "__pycache__",
+        "purpose": "Python 腳本快取。",
+        "ui_ux_mapping": "無 UI 功能。"
+      }
+    ]
+  },
+  "src_structure": {
+    "entry_and_routing": [
+      {
+        "path": "src/main.jsx",
+        "purpose": "React 應用入口，建立 root 並包裹 BrowserRouter。",
+        "ui_ux_mapping": "啟動整個單頁應用程式與路由系統。"
+      },
+      {
+        "path": "src/App.jsx",
+        "purpose": "宣告主要路由，並把 questions.json 傳給首頁、測驗頁、詳情頁等。",
+        "ui_ux_mapping": "控制使用者可進入的頁面流，包括首頁、測驗、結果、錯題本、收藏題、題目詳情。"
+      },
+      {
+        "path": "src/index.css",
+        "purpose": "全域樣式、背景、字體與基礎頁面外觀設定。",
+        "ui_ux_mapping": "決定整體視覺基調、背景氛圍與版面基礎。"
+      }
+    ],
+    "data": [
+      {
+        "path": "src/data/questions.json",
+        "purpose": "目前網站前端直接使用的完整題庫資料。",
+        "ui_ux_mapping": "首頁科目題數、測驗題目內容、結果頁、錯題本、收藏題的核心資料來源。"
+      },
+      {
+        "path": "src/data/questions_original_data",
+        "purpose": "原始考選部壓縮檔題答資料來源。",
+        "ui_ux_mapping": "不直接作用於畫面，但影響題庫建置來源可信度。"
+      }
+    ],
+    "pages": [
+      {
+        "path": "src/pages/HomePage.jsx",
+        "purpose": "首頁，顯示網站名稱、題庫統計、科目入口、錯題本與收藏題入口。",
+        "ui_ux_mapping": "使用者進站後的主入口頁，負責導向各考科正式模擬測驗。"
+      },
+      {
+        "path": "src/pages/QuizPage.jsx",
+        "purpose": "正式模擬測驗頁，負責抽題、倒數計時、作答、切題、確認繳交與自動交卷。",
+        "ui_ux_mapping": "整個專案最核心的考試體驗頁面。"
+      },
+      {
+        "path": "src/pages/ResultPage.jsx",
+        "purpose": "顯示測驗成績、答對答錯統計、錯題列表與重測入口。",
+        "ui_ux_mapping": "交卷後的結果回饋頁，讓使用者快速掌握表現。"
+      },
+      {
+        "path": "src/pages/QuestionDetailPage.jsx",
+        "purpose": "顯示單一題完整內容、正確答案、使用者答案與詳解。",
+        "ui_ux_mapping": "錯題檢討與單題複習頁。"
+      },
+      {
+        "path": "src/pages/WrongBookPage.jsx",
+        "purpose": "列出錯題本中的題目。",
+        "ui_ux_mapping": "讓使用者集中查看歷次答錯題目。"
+      },
+      {
+        "path": "src/pages/BookmarkPage.jsx",
+        "purpose": "列出收藏題。",
+        "ui_ux_mapping": "讓使用者保留重要題目做後續複習。"
+      }
+    ],
+    "components": [
+      {
+        "path": "src/components/Button.jsx",
+        "purpose": "共用按鈕元件與樣式變體。",
+        "ui_ux_mapping": "統一全站按鈕視覺與互動。"
+      },
+      {
+        "path": "src/components/Navbar.jsx",
+        "purpose": "頁面標題列與回首頁按鈕。",
+        "ui_ux_mapping": "各主要頁面的導覽與頁面識別。"
+      },
+      {
+        "path": "src/components/SubjectCard.jsx",
+        "purpose": "首頁考科卡片。",
+        "ui_ux_mapping": "使用者選擇科目進入測驗的入口卡片。"
+      },
+      {
+        "path": "src/components/ResultSummary.jsx",
+        "purpose": "成績摘要卡片。",
+        "ui_ux_mapping": "結果頁上的分數、答對題數、及格狀態等指標顯示。"
+      },
+      {
+        "path": "src/components/QuestionCard.jsx",
+        "purpose": "顯示單題資訊、題目來源、選項與收藏操作。",
+        "ui_ux_mapping": "測驗頁主要答題卡片元件。"
+      },
+      {
+        "path": "src/components/QuestionContent.jsx",
+        "purpose": "解析題幹文字、圖片 placeholder、獨立 image 欄位與表格欄位。",
+        "ui_ux_mapping": "控制題目本文、插圖與表格在畫面上的實際呈現方式。"
+      }
+    ],
+    "utils_and_constants": [
+      {
+        "path": "src/utils/quizUtils.js",
+        "purpose": "抽題、計分、錯題篩選、時間格式化、答案狀態判斷。",
+        "ui_ux_mapping": "支撐測驗流程、結果頁與錯題詳情的互動邏輯。"
+      },
+      {
+        "path": "src/utils/storageUtils.js",
+        "purpose": "操作 localStorage，保存錯題本、收藏題與最近一次測驗結果。",
+        "ui_ux_mapping": "支撐錯題本、收藏題與測驗結果頁面狀態延續。"
+      },
+      {
+        "path": "src/utils/subjectUtils.js",
+        "purpose": "題庫依正式考科分類、計算科目統計、用 ID 取題。",
+        "ui_ux_mapping": "支撐首頁科目入口、測驗頁題目來源與錯題/收藏取題。"
+      },
+      {
+        "path": "src/constants/subjects.js",
+        "purpose": "定義正式國考六大科目、題庫年份範圍、題數、考試時間與及格分數。",
+        "ui_ux_mapping": "支撐首頁文案、分類邏輯與測驗規則常數。"
+      }
+    ],
+    "uploads": [
+      {
+        "path": "src/uploads",
+        "purpose": "前端打包時直接引用的題目圖片資產。",
+        "ui_ux_mapping": "題幹圖片與選項圖片在 UI 中實際顯示的來源。",
+        "asset_count": 13612
+      }
+    ]
+  },
+  "public_structure": [
+    {
+      "path": "public/favicon.svg",
+      "purpose": "網站 favicon。",
+      "ui_ux_mapping": "瀏覽器分頁圖示。"
+    }
+  ],
+  "docs_structure": [
+    {
+      "path": "docs/project-overview.md",
+      "purpose": "專案概述與功能簡介。",
+      "ui_ux_mapping": "無直接 UI，屬專案說明。"
+    },
+    {
+      "path": "docs/data-format.md",
+      "purpose": "questions.json 資料格式定義。",
+      "ui_ux_mapping": "無直接 UI，屬資料維護規範。"
+    },
+    {
+      "path": "docs/todo.md",
+      "purpose": "後續功能與資料維護待辦。",
+      "ui_ux_mapping": "無直接 UI，屬產品/開發規劃。"
+    }
+  ],
+  "ui_ux_feature_map": [
+    {
+      "feature": "首頁科目入口",
+      "routes": ["/"],
+      "source_files": [
+        "src/pages/HomePage.jsx",
+        "src/components/SubjectCard.jsx",
+        "src/utils/subjectUtils.js",
+        "src/constants/subjects.js",
+        "src/data/questions.json"
+      ],
+      "purpose": "顯示科目、題數與年份範圍，讓使用者選擇測驗入口。"
+    },
+    {
+      "feature": "正式模擬測驗",
+      "routes": ["/quiz/:subject"],
+      "source_files": [
+        "src/pages/QuizPage.jsx",
+        "src/components/QuestionCard.jsx",
+        "src/components/QuestionContent.jsx",
+        "src/utils/quizUtils.js",
+        "src/utils/storageUtils.js"
+      ],
+      "purpose": "顯示題目、選項、題號導覽、倒數計時、收藏、切題與交卷。"
+    },
+    {
+      "feature": "題目圖片顯示",
+      "routes": ["/quiz/:subject", "/results/:subject/question/:questionId", "/questions/:questionId"],
+      "source_files": [
+        "src/components/QuestionContent.jsx",
+        "src/components/QuestionCard.jsx",
+        "src/pages/QuestionDetailPage.jsx",
+        "src/uploads",
+        "src/data/questions.json"
+      ],
+      "purpose": "解析 {{image:...}} placeholder 與圖片欄位，呈現題幹或選項的圖片內容。"
+    },
+    {
+      "feature": "結果頁與錯題列表",
+      "routes": ["/results/:subject"],
+      "source_files": [
+        "src/pages/ResultPage.jsx",
+        "src/components/ResultSummary.jsx",
+        "src/utils/quizUtils.js",
+        "src/utils/storageUtils.js"
+      ],
+      "purpose": "顯示成績、答對答錯未作答統計，並導向錯題詳情。"
+    },
+    {
+      "feature": "錯題詳情頁",
+      "routes": ["/results/:subject/question/:questionId", "/questions/:questionId"],
+      "source_files": [
+        "src/pages/QuestionDetailPage.jsx",
+        "src/components/QuestionContent.jsx",
+        "src/utils/quizUtils.js",
+        "src/utils/storageUtils.js"
+      ],
+      "purpose": "檢討單題，顯示正確/錯誤答案狀態與詳解。"
+    },
+    {
+      "feature": "錯題本",
+      "routes": ["/wrong-book"],
+      "source_files": [
+        "src/pages/WrongBookPage.jsx",
+        "src/utils/storageUtils.js",
+        "src/utils/subjectUtils.js"
+      ],
+      "purpose": "集中列出歷次答錯題目。"
+    },
+    {
+      "feature": "收藏題",
+      "routes": ["/bookmarks"],
+      "source_files": [
+        "src/pages/BookmarkPage.jsx",
+        "src/utils/storageUtils.js",
+        "src/utils/subjectUtils.js"
+      ],
+      "purpose": "集中列出使用者收藏的題目。"
+    }
+  ],
+  "non_ui_support_assets": [
+    {
+      "path": "assets",
+      "purpose": "舊版或中繼圖片輸出資產。",
+      "currently_used_by_frontend": false
+    },
+    {
+      "path": "assets 2",
+      "purpose": "歷史重複或備份型圖片資料夾。",
+      "currently_used_by_frontend": false
+    },
+    {
+      "path": "_work_extracted / _work_extracted 2",
+      "purpose": "原始題答壓縮檔的解壓工作區。",
+      "currently_used_by_frontend": false
+    },
+    {
+      "path": "__pycache__",
+      "purpose": "Python 執行快取。",
+      "currently_used_by_frontend": false
+    }
+  ]
+}

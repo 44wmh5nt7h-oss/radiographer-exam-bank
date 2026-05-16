@@ -1,0 +1,18 @@
+node_modules
+dist
+.git
+.vscode
+.DS_Store
+coverage
+*.log
+.cache
+.vercel
+tmp
+temp
+.venv
+__pycache__
+_work_extracted
+assets 2
+output.json
+errors.json
+summary.json
