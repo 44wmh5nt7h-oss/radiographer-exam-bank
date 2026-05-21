@@ -20,6 +20,7 @@ import {
   toggleBookmark,
   updateTodayStats,
 } from '../utils/storageUtils'
+import { recordGrowthFromExamSubmission } from '../utils/growthUtils'
 import {
   getAvailableYearsFromIndex,
 } from '../utils/subjectUtils'
@@ -238,6 +239,7 @@ function QuizPage() {
     appendTodayWrongQuestions(wrongQuestions)
     saveWrongQuestionIds(wrongQuestions)
     saveExamResult(subject, resultPayload)
+    recordGrowthFromExamSubmission(resultPayload)
 
     if (import.meta.env.DEV) {
       const invariantCheck =

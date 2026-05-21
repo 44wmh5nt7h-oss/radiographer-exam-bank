@@ -2,20 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Button from '../components/Button'
 import SubjectCard from '../components/SubjectCard'
-import { QUIZ_LENGTH, formatTime } from '../utils/quizUtils'
+import { QUIZ_LENGTH } from '../utils/quizUtils'
 import {
   analyzeTodayWrongTags,
   calculateStreak,
   extractQuestionTags,
+  getBookmarkIds,
   getDailyGoal,
   getExamDate,
   getTodayWrongAnalysisItems,
   getTodayPerformanceSummary,
-  getRecentFullMockExamResults,
   getRecentSingleSubjectExamResults,
-  getSingleSubjectScoreTrend,
-  getFullMockExamScoreTrend,
   getTodayStats,
+  getWrongBookIds,
   setDailyGoal,
   setExamDate,
 } from '../utils/storageUtils'
@@ -24,6 +23,7 @@ import {
   getSubjectSummariesFromIndex,
 } from '../utils/subjectUtils'
 import { getQuestionByKey, getQuestionIndex } from '../utils/questionDataLoader'
+import { getGrowthPreviewSummary } from '../utils/growthUtils'
 
 const DAILY_GOAL_OPTIONS = [20, 40, 80]
 const MIN_DAILY_GOAL = 1
@@ -56,7 +56,7 @@ function formatExamCountdown(dateString) {
   if (diffDays > 0) {
     return {
       status: 'countdown',
-      label: `距離國考還有 ${diffDays} 天`,
+      label: `${diffDays} 天`,
       detail: `目標日：${year} 年 ${month} 月 ${day} 日`,
     }
   }
@@ -76,12 +76,69 @@ function formatExamCountdown(dateString) {
   }
 }
 
-function formatDurationLabel(seconds) {
-  if (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0) {
-    return '00:00'
+function formatDateLabel(dateString) {
+  if (!dateString) {
+    return '--'
   }
 
-  return formatTime(Number(seconds))
+  return String(dateString).replaceAll('-', '/')
+}
+
+function getScoreBarWidth(score) {
+  return Math.max(10, Math.min(100, Number(score || 0)))
+}
+
+function StatCard({ label, value, description, accent = 'light' }) {
+  const toneClassName =
+    accent === 'dark'
+      ? 'border-slate-900/80 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_58%,#2563eb_100%)] text-white'
+      : 'border-slate-200/90 bg-white/90 text-slate-900 backdrop-blur'
+
+  const labelClassName = accent === 'dark' ? 'text-slate-300' : 'text-slate-500'
+  const descriptionClassName = accent === 'dark' ? 'text-slate-300' : 'text-slate-600'
+
+  return (
+    <article className={`relative overflow-hidden rounded-[1.5rem] border p-5 shadow-sm ${toneClassName}`}>
+      <div className={`absolute inset-x-0 top-0 h-px ${accent === 'dark' ? 'bg-white/20' : 'bg-slate-200'}`} />
+      <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${labelClassName}`}>{label}</p>
+      <p className="mt-4 text-3xl font-black sm:text-4xl">{value}</p>
+      <p className={`mt-3 text-sm leading-relaxed ${descriptionClassName}`}>{description}</p>
+    </article>
+  )
+}
+
+function QuickActionCard({ to, title, subtitle, count, countLabel, accentClassName, helperText }) {
+  return (
+    <Link
+      to={to}
+      className="group rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black ring-1 ${accentClassName}`}
+        >
+          {title.slice(0, 2)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div>
+            <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{subtitle}</p>
+          </div>
+          {typeof count === 'number' && (
+            <p className="mt-4 text-sm font-semibold text-slate-700">
+              {countLabel} {count.toLocaleString('zh-TW')} 題
+            </p>
+          )}
+          {!Number.isFinite(count) && helperText && (
+            <p className="mt-4 text-sm font-semibold text-slate-700">{helperText}</p>
+          )}
+          <div className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition group-hover:bg-blue-700">
+            {title === '錯題本' ? '立即複習錯題' : title === '收藏題' ? '查看收藏題' : '查看成長'}
+          </div>
+        </div>
+      </div>
+    </Link>
+  )
 }
 
 function HomePage() {
@@ -98,11 +155,9 @@ function HomePage() {
   const [recentSingleSubjectResults, setRecentSingleSubjectResults] = useState(() =>
     getRecentSingleSubjectExamResults(5),
   )
-  const [recentFullMockResults, setRecentFullMockResults] = useState(() =>
-    getRecentFullMockExamResults(5),
-  )
   const [showTodayAnalysis, setShowTodayAnalysis] = useState(false)
   const [resolvedTodayWrongQuestions, setResolvedTodayWrongQuestions] = useState([])
+
   const availableYears = useMemo(() => getAvailableYearsFromIndex(questionIndex), [questionIndex])
   const defaultStartYear = availableYears[0] ?? 100
   const defaultEndYear = availableYears[availableYears.length - 1] ?? 115
@@ -128,13 +183,7 @@ function HomePage() {
   const todayAnsweredCount = Number(todayStats.answeredCount || 0)
   const completionRate = dailyGoal > 0 ? todayAnsweredCount / dailyGoal : 0
   const dailyGoalProgress = Math.min(100, Math.round(completionRate * 100))
-  const hasMetDailyGoal = todayAnsweredCount >= dailyGoal
-  const remainingQuestionCount = Math.max(0, dailyGoal - todayAnsweredCount)
-  const recentSingleSubjectPreview = recentSingleSubjectResults.slice(0, 3)
-  const recentFullMockPreview = recentFullMockResults.slice(0, 3)
-  const hasStartedToday = todayAnsweredCount > 0
-  const singleSubjectTrend = getSingleSubjectScoreTrend(5)
-  const fullMockTrend = getFullMockExamScoreTrend(5)
+  const recentSingleSubjectPreview = recentSingleSubjectResults.slice(0, 5)
   const performanceSummary = useMemo(
     () =>
       getTodayPerformanceSummary({
@@ -155,13 +204,20 @@ function HomePage() {
       }),
     [resolvedTodayWrongQuestions, todayWrongAnalysisInput.hasActivity],
   )
-  const shouldSplitGoal = dailyGoal > 80
+  const wrongBookCount = getWrongBookIds().length
+  const bookmarkCount = getBookmarkIds().length
+  const growthPreview = getGrowthPreviewSummary()
+  const growthPreviewBadge =
+    growthPreview.streak > 0
+      ? `連續 ${growthPreview.streak} 天`
+      : growthPreview.todayXp > 0
+        ? `今日 +${growthPreview.todayXp} XP`
+        : '查看成長分析'
 
   useEffect(() => {
     setTodayStatsState(getTodayStats())
     setStreak(calculateStreak())
     setRecentSingleSubjectResults(getRecentSingleSubjectExamResults(5))
-    setRecentFullMockResults(getRecentFullMockExamResults(5))
   }, [])
 
   useEffect(() => {
@@ -324,528 +380,389 @@ function HomePage() {
   }
 
   return (
-    <main className="px-4 py-10">
-      <section className="mx-auto w-full max-w-7xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
-        <div className="grid gap-10 p-5 sm:p-8 xl:grid-cols-[1.15fr_0.95fr] xl:p-12">
-          <div className="space-y-6 xl:pr-4">
-            <span className="inline-flex rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-              醫事放射師國考單科限時測驗
-            </span>
-            <div className="space-y-4">
-              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
-                放射師國考刷題庫
-              </h1>
-              <p className="max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg">
-                依單科限時測驗模式提供作答入口。每次從指定考科隨機抽出 {QUIZ_LENGTH} 題，採 60 分鐘倒數、可切換題目與統一繳交的考試流程。
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-[1.5rem] border border-slate-900 bg-slate-900 p-5 text-white md:col-span-2 xl:col-span-1 xl:p-6">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-300">目前篩選題數</p>
-                <p className="mt-4 text-5xl font-black">{totalQuestions}</p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                  已套用所選年份範圍內的結構化歷屆題庫資料。
+    <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+        <section className="relative overflow-hidden rounded-[2.2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#ffffff_56%,#eff6ff_100%)] p-6 shadow-sm md:p-8">
+          <div className="pointer-events-none absolute -left-16 bottom-0 h-40 w-40 rounded-full bg-blue-100/50 blur-3xl" />
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-sky-200/30 blur-3xl" />
+          <div className="grid gap-6 xl:grid-cols-[1.4fr_0.95fr] xl:items-start">
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-blue-700">
+                  單科限時測驗 Dashboard
+                </span>
+                <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl xl:text-[2.8rem]">
+                  放射師國考刷題庫
+                </h1>
+                <p className="max-w-3xl text-base leading-relaxed text-slate-600">
+                  選擇科目後立即開始 80 題限時測驗，錯題與收藏題可用於考前快速複習。
                 </p>
               </div>
 
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 xl:p-6">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-600">題庫年份</p>
-                <p className="mt-4 text-4xl font-black text-slate-950">{activeYearRangeLabel}</p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                  UI 年份顯示已統一為民國 100 年至 115 年。
-                </p>
-              </div>
-
-              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 xl:p-6">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-600">作答規則</p>
-                <p className="mt-4 text-4xl font-black text-slate-950">80 / 60</p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                  每科 80 題，作答時間 60 分鐘，作答方式與計分規則維持不變。
-                </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <StatCard
+                  label="總題數"
+                  value={`${Number(totalQuestions || 0).toLocaleString('zh-TW')} 題`}
+                  description="可用題庫量"
+                  accent="dark"
+                />
+                <StatCard label="題庫年份" value={activeYearRangeLabel} description="可隨時調整年份範圍" />
+                <StatCard label="每次測驗" value={`${QUIZ_LENGTH} 題 / 60 分鐘`} description="單科限時測驗規則" />
               </div>
             </div>
 
-            <section className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5 shadow-[0_16px_38px_rgba(15,23,42,0.05)] sm:p-6">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    國考備考戰情中心
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950">每日進度與測驗追蹤</h2>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                    先用本地紀錄建立備考節奏，後續再串接 AI 詳解與更完整的學習分析。
-                  </p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <article className="rounded-[1.6rem] border border-slate-200 bg-white/92 p-5 shadow-sm backdrop-blur">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-500">今日進度</p>
+                    <p className="mt-3 text-3xl font-black text-slate-950">
+                      {todayAnsweredCount} / {dailyGoal} 題
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-blue-700">完成率 {dailyGoalProgress}%</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-right">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">連續學習</p>
+                    <p className="mt-2 text-2xl font-black text-emerald-700">{streak} 天</p>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.04)] lg:text-right">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">國考倒數日</p>
-                  <p className="mt-2 text-2xl font-black text-slate-950">{countdown.label}</p>
-                  <p className="mt-1 text-sm text-slate-500">{countdown.detail}</p>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+                    style={{ width: `${dailyGoalProgress}%` }}
+                  />
                 </div>
+              </article>
+
+              <article className="rounded-[1.6rem] border border-slate-200 bg-white/88 p-5 shadow-sm backdrop-blur">
+                <p className="text-sm font-semibold text-slate-500">
+                  {countdown.status === 'countdown' ? '距離國考還有' : countdown.status === 'passed' ? '考試日期已過' : '考試日期'}
+                </p>
+                <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">{countdown.label}</p>
+                <p className="mt-2 text-sm text-slate-500">{countdown.detail}</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.84fr_1.86fr]">
+          <div className="order-2 space-y-6 xl:order-1">
+            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">高頻複習入口</p>
+                <h2 className="mt-2 text-2xl font-black text-slate-950">快速回到最常用的複習功能</h2>
               </div>
 
-              <div className="mt-6 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="grid gap-4">
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">備考設定</p>
-                    <div className="mt-4 grid gap-4">
-                      <label className="grid min-w-0 gap-2 text-sm text-slate-600">
-                        <span>考試日期</span>
-                        <input
-                          type="date"
-                          value={examDate}
-                          onChange={handleExamDateChange}
-                          className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500"
-                        />
-                      </label>
-                      <div className="grid min-w-0 gap-2 text-sm text-slate-600">
-                        <span>今日刷題目標</span>
-                        <div className="grid gap-2">
-                          <div className="flex min-w-0 items-center rounded-xl border border-slate-300 bg-slate-50">
-                            <input
-                              type="number"
-                              min={MIN_DAILY_GOAL}
-                              max={MAX_DAILY_GOAL}
-                              value={dailyGoalInput}
-                              onChange={handleDailyGoalInputChange}
-                              onBlur={handleDailyGoalBlur}
-                              onKeyDown={handleDailyGoalKeyDown}
-                              className="w-full min-w-0 rounded-xl bg-transparent px-4 py-3 text-slate-900 outline-none"
-                              inputMode="numeric"
-                            />
-                            <span className="shrink-0 px-4 text-sm font-semibold text-slate-500">題</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {DAILY_GOAL_OPTIONS.map((goal) => (
-                            <button
-                              key={goal}
-                              type="button"
-                              onClick={() => commitDailyGoal(goal)}
-                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-500 hover:bg-slate-50"
-                            >
-                              {goal} 題
-                            </button>
-                          ))}
-                        </div>
-                        <p className={`text-xs ${dailyGoalError ? 'text-rose-600' : 'text-slate-500'}`}>
-                          {dailyGoalError || '可自訂目標題數'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">今日刷題進度</p>
-                        <p className="mt-2 text-3xl font-black text-slate-950">
-                          {todayAnsweredCount} / {dailyGoal}
-                        </p>
-                        <p className="mt-2 text-sm text-slate-600">
-                          今日答對 {todayStats.correctCount} 題，答錯 {todayStats.wrongCount} 題
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-center">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          連續學習
-                        </p>
-                        <p className="mt-2 text-3xl font-black text-slate-950">{streak} 天</p>
-                        <p className="mt-2 text-sm text-slate-600">
-                          {hasStartedToday ? '今天已開始作答，繼續保持節奏。' : '今天還沒開始刷題'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5">
-                      <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                        <div
-                          className="h-full rounded-full bg-slate-900 transition-[width] duration-300"
-                          style={{ width: `${dailyGoalProgress}%` }}
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-sm text-slate-500">
-                        <span>完成度 {dailyGoalProgress}%</span>
-                        <span>{hasMetDailyGoal ? '今日目標已達成，做得很好。' : '持續作答即可累積進度。'}</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <p className="text-sm font-semibold text-slate-900">今日進度表</p>
-                      <div className="mt-3 grid gap-2 text-sm text-slate-600">
-                        <div className="flex items-center justify-between gap-4">
-                          <span>今日目標題數</span>
-                          <span className="font-semibold text-slate-900">{dailyGoal} 題</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                          <span>已完成題數</span>
-                          <span className="font-semibold text-slate-900">{todayAnsweredCount} 題</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                          <span>剩餘題數</span>
-                          <span className="font-semibold text-slate-900">{remainingQuestionCount} 題</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                          <span>完成率</span>
-                          <span className="font-semibold text-slate-900">{dailyGoalProgress}%</span>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm leading-relaxed text-slate-600">{performanceSummary.nextStep}</p>
-                      {shouldSplitGoal && (
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                          建議分成 2～3 回合完成，避免疲勞。
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <div className="flex flex-col gap-4">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">今日建議</p>
-                          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            AI 國考教練
-                          </p>
-                        </div>
-
-                        <div className="space-y-3">
-                          <p className="text-sm leading-relaxed text-slate-700">
-                            {performanceSummary.encouragement}
-                          </p>
-                          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                            <p className="font-semibold text-slate-900">{performanceSummary.targetStatus}</p>
-                            <p className="mt-2 leading-relaxed">{performanceSummary.nextStep}</p>
-                            {performanceSummary.extraNote && (
-                              <p className="mt-2 leading-relaxed text-slate-500">{performanceSummary.extraNote}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="self-start border-slate-900 text-slate-900"
-                          onClick={() => setShowTodayAnalysis((prev) => !prev)}
-                        >
-                          分析今日答題狀況
-                        </Button>
-
-                        {showTodayAnalysis && (
-                          <div className="space-y-4 rounded-xl border border-slate-200 bg-white px-4 py-4">
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-900">今日弱點摘要</h3>
-                              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                                {todayAnalysis.summary}
-                              </p>
-                            </div>
-
-                            {todayAnalysis.hasData && todayAnalysis.hasTagData && todayAnalysis.topTags.length > 0 && (
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-900">高頻錯題標籤</h3>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {todayAnalysis.topTags.map((tag) => (
-                                    <span
-                                      key={tag.value}
-                                      className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
-                                    >
-                                      {tag.value} × {tag.count}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {todayAnalysis.hasData && !todayAnalysis.hasTagData && todayAnalysis.topSubjects.length > 0 && (
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-900">主要集中科目</h3>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {todayAnalysis.topSubjects.map((subject) => (
-                                    <span
-                                      key={subject.value}
-                                      className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
-                                    >
-                                      {subject.value}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-900">建議接下來複習方向</h3>
-                              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                                {todayAnalysis.reviewSuggestion}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4">
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">最近 3 次單科測驗紀錄</p>
-                        <p className="mt-2 text-sm text-slate-600">
-                          交卷後會自動保存最近的單科限時測驗結果。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {recentSingleSubjectPreview.length > 0 ? (
-                        recentSingleSubjectPreview.map((result) => (
-                          <div
-                            key={`${result.savedAt}-${result.subject}`}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                          >
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-900">{result.subject}</p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  {result.date}｜{result.totalQuestions} 題｜{result.yearRange || '未設定年份範圍'}｜作答時間 {formatDurationLabel(result.elapsedTime)}
-                                </p>
-                              </div>
-                              <div className="text-left lg:text-right">
-                                <p className="text-2xl font-black text-slate-950">
-                                  {Number(result.score || 0).toFixed(2)}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  答對 {result.correctCount}｜答錯 {result.wrongCount}｜未作答 {result.unansweredCount}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                          尚無單科測驗紀錄。完成單科限時測驗後，這裡會顯示最近成績。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">最近 5 次單科測驗分數趨勢</p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      先以精簡趨勢條顯示近期單科測驗分數，避免額外引入大型圖表套件。
-                    </p>
-                    <div className="mt-4 space-y-3">
-                      {singleSubjectTrend.length > 0 ? (
-                        singleSubjectTrend.map((result, index) => {
-                          const score = Number(result.score || 0)
-                          const width = Math.max(8, Math.min(100, score))
-
-                          return (
-                            <div key={`${result.savedAt}-${index}`} className="grid gap-2">
-                              <div className="flex items-center justify-between gap-4 text-sm">
-                                <span className="font-medium text-slate-700">
-                                  {result.date}｜{result.subject}
-                                </span>
-                                <span className="font-semibold text-slate-900">{score.toFixed(2)} 分</span>
-                              </div>
-                              <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                                <div
-                                  className="h-full rounded-full bg-slate-800 transition-[width] duration-300"
-                                  style={{ width: `${width}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                          尚無可用分數趨勢資料。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">完整六科模擬考紀錄</p>
-                        <p className="mt-2 text-sm text-slate-600">
-                          完整六科流程上線後，這裡會獨立保存完整模考成績。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {recentFullMockPreview.length > 0 ? (
-                        recentFullMockPreview.map((result) => (
-                          <div
-                            key={`${result.savedAt}-${result.date}`}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                          >
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-slate-900">{result.date}</p>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  {result.totalQuestions} 題｜作答時間 {formatDurationLabel(result.elapsedTime)}
-                                </p>
-                              </div>
-                              <div className="text-left lg:text-right">
-                                <p className="text-2xl font-black text-slate-950">
-                                  {Number(result.totalScore || 0).toFixed(2)}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  答對 {result.totalCorrectCount}｜答錯 {result.totalWrongCount}｜未作答 {result.totalUnansweredCount}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                          目前尚無完整六科模擬考紀錄。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-slate-900">完整六科模擬考分數趨勢</p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      單科測驗趨勢與完整模考趨勢分開呈現，避免混用。
-                    </p>
-                    <div className="mt-4 space-y-3">
-                      {fullMockTrend.length > 0 ? (
-                        fullMockTrend.map((result, index) => {
-                          const score = Number(result.totalScore || 0)
-                          const width = Math.max(8, Math.min(100, score))
-
-                          return (
-                            <div key={`${result.savedAt}-${index}`} className="grid gap-2">
-                              <div className="flex items-center justify-between gap-4 text-sm">
-                                <span className="font-medium text-slate-700">{result.date}</span>
-                                <span className="font-semibold text-slate-900">{score.toFixed(2)} 分</span>
-                              </div>
-                              <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                                <div
-                                  className="h-full rounded-full bg-slate-800 transition-[width] duration-300"
-                                  style={{ width: `${width}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                          完成完整六科模擬考後，這裡會顯示總分趨勢。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              <div className="mt-5 grid gap-4">
+                <QuickActionCard
+                  to="/wrong-book"
+                  title="錯題本"
+                  subtitle="複習答錯題目，優先補強弱點"
+                  count={wrongBookCount}
+                  countLabel="目前待修復"
+                  accentClassName="bg-rose-50 text-rose-700 ring-rose-100"
+                />
+                <QuickActionCard
+                  to="/bookmarks"
+                  title="收藏題"
+                  subtitle="考前快速回顧已標記題目"
+                  count={bookmarkCount}
+                  countLabel="目前收藏"
+                  accentClassName="bg-violet-50 text-violet-700 ring-violet-100"
+                />
+                <QuickActionCard
+                  to="/growth"
+                  title="我的成長"
+                  subtitle="查看最近 7 天作答節奏與弱點"
+                  accentClassName="bg-sky-50 text-sky-700 ring-sky-100"
+                  helperText={growthPreviewBadge}
+                />
               </div>
             </section>
-          </div>
 
-          <div className="space-y-4">
-            <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
-                科目入口
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                請選擇應試科目進入單科限時測驗。若題庫不足 80 題，系統將保留現有規則並顯示提示訊息。
-              </p>
-            </div>
-
-            <section className="rounded-[1.5rem] border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    Coming Soon
-                  </p>
-                  <h2 className="mt-2 text-xl font-bold">完整六科模擬考</h2>
-                  <div className="mt-4 grid gap-2 text-sm text-slate-300">
-                    <p>預留完整六科串接後的正式模考入口。</p>
-                    <p>未來將與單科測驗紀錄分開儲存與顯示。</p>
-                  </div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">作答條件與目標</p>
+                  <h2 className="mt-2 text-2xl font-black text-slate-950">設定今日目標與抽題年份範圍</h2>
                 </div>
-                <span className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300">
-                  即將推出
-                </span>
-              </div>
-            </section>
-
-            <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
-              <p className="text-sm font-semibold text-slate-800">選擇題目年份範圍</p>
-              {metadataError && (
-                <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {metadataError}
-                </p>
-              )}
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm text-slate-600">
-                  <span>起始年份</span>
-                  <select
-                    value={startYear}
-                    onChange={handleStartYearChange}
-                    disabled={isMetadataLoading || availableYears.length === 0}
-                    className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500"
-                  >
-                    {availableYears.map((year) => (
-                      <option key={`start-${year}`} value={year}>
-                        民國 {year} 年
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="grid gap-2 text-sm text-slate-600">
-                  <span>終止年份</span>
-                  <select
-                    value={endYear}
-                    onChange={handleEndYearChange}
-                    disabled={isMetadataLoading || endYearOptions.length === 0}
-                    className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-500"
-                  >
-                    {endYearOptions.map((year) => (
-                      <option key={`end-${year}`} value={year}>
-                        民國 {year} 年
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <p className="mt-3 text-sm text-slate-500">
-                {isMetadataLoading
-                  ? '正在載入題庫索引...'
-                  : `目前套用範圍：民國 ${startYear} 年至 ${endYear} 年`}
-              </p>
-            </section>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <Button as={Link} to="/wrong-book" variant="secondary">
-                錯題本
-              </Button>
-              <Button as={Link} to="/bookmarks" variant="secondary">
-                收藏題
-              </Button>
-            </div>
-
-            <div className="grid gap-4">
-              {isMetadataLoading ? (
-                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-                  正在載入科目題庫資訊...
+                <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                  民國 {startYear}–{endYear} 年
                 </div>
-              ) : (
-                subjectSummaries.map((item) => (
-                  <SubjectCard
-                    key={item.subject}
-                    subject={item.subject}
-                    totalQuestions={item.totalQuestions}
-                    yearRange={activeYearRangeLabel}
-                    search={search}
+              </div>
+
+              <div className="mt-6 grid gap-5">
+                <label className="grid gap-2 text-sm text-slate-600">
+                  <span className="font-semibold text-slate-800">考試日期</span>
+                  <input
+                    type="date"
+                    value={examDate}
+                    onChange={handleExamDateChange}
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-900 outline-none transition focus:border-blue-400"
                   />
-                ))
-              )}
-            </div>
+                </label>
+
+                <div className="grid gap-2 text-sm text-slate-600">
+                  <span className="font-semibold text-slate-800">今日刷題目標</span>
+                  <div className="flex min-w-0 items-center rounded-xl border border-slate-200 bg-slate-50">
+                    <input
+                      type="number"
+                      min={MIN_DAILY_GOAL}
+                      max={MAX_DAILY_GOAL}
+                      value={dailyGoalInput}
+                      onChange={handleDailyGoalInputChange}
+                      onBlur={handleDailyGoalBlur}
+                      onKeyDown={handleDailyGoalKeyDown}
+                      className="h-12 w-full min-w-0 rounded-xl bg-transparent px-4 text-slate-900 outline-none"
+                      inputMode="numeric"
+                    />
+                    <span className="px-4 text-sm font-semibold text-slate-500">題</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {DAILY_GOAL_OPTIONS.map((goal) => (
+                      <button
+                        key={goal}
+                        type="button"
+                        onClick={() => commitDailyGoal(goal)}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          Number(dailyGoal) === goal
+                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {goal} 題
+                      </button>
+                    ))}
+                  </div>
+                  <p className={`text-xs ${dailyGoalError ? 'text-rose-600' : 'text-slate-500'}`}>
+                    {dailyGoalError || '可自訂目標題數'}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-800">起始年份</span>
+                    <select
+                      value={startYear}
+                      onChange={handleStartYearChange}
+                      disabled={isMetadataLoading || availableYears.length === 0}
+                      className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-900 outline-none transition focus:border-blue-400"
+                    >
+                      {availableYears.map((year) => (
+                        <option key={`start-${year}`} value={year}>
+                          民國 {year} 年
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-800">終止年份</span>
+                    <select
+                      value={endYear}
+                      onChange={handleEndYearChange}
+                      disabled={isMetadataLoading || endYearOptions.length === 0}
+                      className="h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-900 outline-none transition focus:border-blue-400"
+                    >
+                      {endYearOptions.map((year) => (
+                        <option key={`end-${year}`} value={year}>
+                          民國 {year} 年
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-slate-600">
+                      <p className="font-semibold text-slate-900">今日建議</p>
+                      <p className="mt-1">{performanceSummary.encouragement}</p>
+                    </div>
+                    <Button type="button" variant="secondary" onClick={() => setShowTodayAnalysis((prev) => !prev)}>
+                      分析今日答題狀況
+                    </Button>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{performanceSummary.nextStep}</p>
+                  {performanceSummary.extraNote && (
+                    <p className="mt-2 text-sm leading-relaxed text-slate-500">{performanceSummary.extraNote}</p>
+                  )}
+
+                  {showTodayAnalysis && (
+                    <div className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">今日弱點摘要</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{todayAnalysis.summary}</p>
+                      </div>
+
+                      {todayAnalysis.hasData && todayAnalysis.hasTagData && todayAnalysis.topTags.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900">高頻錯題標籤</h3>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {todayAnalysis.topTags.map((tag) => (
+                              <span
+                                key={tag.value}
+                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+                              >
+                                {tag.value} × {tag.count}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {todayAnalysis.hasData && !todayAnalysis.hasTagData && todayAnalysis.topSubjects.length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900">主要集中科目</h3>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {todayAnalysis.topSubjects.map((subject) => (
+                              <span
+                                key={subject.value}
+                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700"
+                              >
+                                {subject.value}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">建議接下來複習方向</h3>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-600">{todayAnalysis.reviewSuggestion}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  {isMetadataLoading
+                    ? '正在載入題庫索引...'
+                    : `目前套用範圍：民國 ${startYear} 年至 ${endYear} 年`}
+                </p>
+              </div>
+            </section>
           </div>
-        </div>
-      </section>
+
+          <div className="order-1 space-y-6 xl:order-2">
+            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <span className="h-10 w-1 rounded-full bg-blue-600" />
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">單科限時測驗</p>
+                      <h2 className="mt-1 text-2xl font-black text-slate-950">選擇科目開始作答</h2>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600">
+                    目前設定：{activeYearRangeLabel}｜每次 {QUIZ_LENGTH} 題｜60 分鐘
+                  </p>
+                </div>
+              </div>
+
+              {metadataError && (
+                <div className="mt-5 rounded-[1.25rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {metadataError}
+                </div>
+              )}
+
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {isMetadataLoading ? (
+                  <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600 md:col-span-2">
+                    正在載入科目題庫資訊...
+                  </div>
+                ) : (
+                  subjectSummaries.map((item) => (
+                    <SubjectCard
+                      key={item.subject}
+                      subject={item.subject}
+                      totalQuestions={item.totalQuestions}
+                      yearRange={activeYearRangeLabel}
+                      search={search}
+                    />
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-[1.5rem] border border-slate-800 bg-[linear-gradient(135deg,#0f172a_0%,#172554_65%,#1d4ed8_100%)] p-5 text-white shadow-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-xl font-black tracking-tight">完整六科模擬考</h2>
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-blue-100">
+                      COMING SOON
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-200">
+                    正式模考入口預留中，未來將與單科測驗紀錄分開儲存與顯示。
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/15"
+                  disabled
+                >
+                  即將推出
+                </Button>
+              </div>
+            </section>
+
+            <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">最近 5 次單科測驗</p>
+                  <p className="mt-1 text-sm text-slate-600">近期作答紀錄保留在首頁下方，避免干擾主要刷題入口。</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {recentSingleSubjectPreview.length > 0 ? (
+                  recentSingleSubjectPreview.map((result) => {
+                    const score = Number(result.score || 0)
+
+                    return (
+                      <article
+                        key={`${result.savedAt}-${result.subject}`}
+                        className="rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                              <span className="font-semibold text-slate-900">{formatDateLabel(result.date)}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-700">{result.subject}</span>
+                            </div>
+                            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className="h-full rounded-full bg-blue-600 transition-[width] duration-300"
+                                style={{ width: `${getScoreBarWidth(score)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="text-left lg:min-w-[120px] lg:text-right">
+                            <p className="text-lg font-black text-slate-950">{score.toFixed(2)} 分</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {result.correctCount} 對 / {result.wrongCount} 錯 / {result.unansweredCount} 未作答
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })
+                ) : (
+                  <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-sm text-slate-500">
+                    完成單科限時測驗後，這裡會顯示最近 5 次測驗紀錄。
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
     </main>
   )
 }

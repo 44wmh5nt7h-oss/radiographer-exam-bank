@@ -1007,6 +1007,11 @@ export function updateWrongQuestionStatus(questionKey, status = 'resolved') {
   return getWrongBookIds()
 }
 
+export function clearWrongBook() {
+  writeWrongBookEntries([])
+  return []
+}
+
 export function getBookmarkIds() {
   const bookmarkIds = readStorageArray(BOOKMARK_KEY).map(normalizeBookmarkEntry).filter(Boolean)
   return [...new Set(bookmarkIds)]

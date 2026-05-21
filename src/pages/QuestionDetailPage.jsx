@@ -245,14 +245,10 @@ function QuestionDetailPage() {
 
   const handleResolveQuestion = () => {
     updateWrongQuestionStatus(questionKey, 'resolved')
-    navigate('/wrong-book')
+    navigate(returnTarget.to)
   }
 
   const handleAddBookmark = () => {
-    if (bookmarkIds.includes(questionKey)) {
-      return
-    }
-
     setBookmarkIds(toggleBookmark(question || questionKey))
   }
 
@@ -302,7 +298,7 @@ function QuestionDetailPage() {
                 我已經會了
               </Button>
               <Button type="button" onClick={handleAddBookmark}>
-                {bookmarkIds.includes(questionKey) ? '已加入收藏題' : '加入收藏題'}
+                {bookmarkIds.includes(questionKey) ? '取消收藏' : '加入收藏題'}
               </Button>
             </>
           }
