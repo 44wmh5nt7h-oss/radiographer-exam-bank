@@ -99,65 +99,95 @@ function GrowthPage() {
           <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">7 日趨勢</p>
-                <h3 className="mt-2 text-2xl font-black text-slate-950">最近一週作答節奏</h3>
-              </div>
-              <div className="text-right text-sm text-slate-500">
-                <p>本週 {sevenDayTrend.totalAnswered} 題</p>
-                <p className="mt-1">連續 {sevenDayTrend.streak} 天</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">7 日概況</p>
+                <h3 className="mt-2 text-2xl font-black text-slate-950">最近 7 天作答概況</h3>
+                <p className="mt-2 text-sm text-slate-600">快速確認最近哪幾天有刷題、每天完成題數，以及整體正確率表現。</p>
               </div>
             </div>
 
             {!sevenDayTrend.hasEnoughData ? (
               <div className="mt-6">
                 <EmptyState
-                  title="累積 2 天後顯示趨勢"
-                  description="開始作答後，這裡會整理最近 7 天的刷題量與正確率變化。"
+                  title="最近 7 天尚無作答紀錄"
+                  description="開始刷題後，這裡會顯示你每天的作答題數與正確率變化。"
                   actionLabel="開始刷題"
                   actionTo="/"
                 />
               </div>
             ) : (
               <div className="mt-8">
-                <div className="grid grid-cols-7 items-end gap-3">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <MetricBadge
+                    label="本週作答"
+                    value={`${sevenDayTrend.totalAnswered} 題`}
+                    hint="最近 7 天累積"
+                    tone="blue"
+                  />
+                  <MetricBadge
+                    label="活躍天數"
+                    value={`${sevenDayTrend.activeDays} 天`}
+                    hint={sevenDayTrend.activeDays > 0 ? '有作答即算活躍' : '尚未開始'}
+                    tone="emerald"
+                  />
+                  <MetricBadge
+                    label="平均正確率"
+                    value={`${sevenDayTrend.averageAccuracy}%`}
+                    hint={sevenDayTrend.totalAnswered > 0 ? '以最近 7 天整體作答計算' : '尚無資料'}
+                    tone="amber"
+                  />
+                </div>
+
+                <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
+                  <div className="grid grid-cols-7 items-end gap-2 md:gap-3">
                   {sevenDayTrend.days.map((day) => {
                     const barHeight =
                       sevenDayTrend.maxAnsweredCount > 0
                         ? Math.max(14, Math.round((day.answeredCount / sevenDayTrend.maxAnsweredCount) * 112))
                         : 14
-                    const accuracyDotBottom = Math.max(8, Math.min(112, Math.round((day.accuracy / 100) * 112)))
+                    const accuracyDotBottom = Math.max(12, Math.min(112, Math.round((day.accuracy / 100) * 112)))
 
                     return (
-                      <div key={day.dateKey} className="flex flex-col items-center gap-3">
-                        <div className="relative flex h-32 w-full items-end justify-center rounded-2xl bg-slate-50">
+                      <div key={day.dateKey} className="flex min-w-0 flex-col items-center gap-3">
+                        <div className="relative flex h-36 w-full items-end justify-center rounded-2xl border border-slate-200 bg-white">
                           <div
-                            className="w-8 rounded-t-2xl bg-blue-500 transition-all duration-700"
+                            className="w-7 rounded-t-2xl bg-blue-500 transition-all duration-700 md:w-8"
                             style={{ height: `${barHeight}px` }}
+                            title={`作答 ${day.answeredCount} 題`}
                           />
-                          <span
-                            className="absolute h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow-sm"
-                            style={{ bottom: `${accuracyDotBottom}px` }}
-                            title={`正確率 ${day.accuracy}%`}
-                          />
+                          {day.hasActivity ? (
+                            <span
+                              className="absolute h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow-sm"
+                              style={{ bottom: `${accuracyDotBottom}px` }}
+                              title={`正確率 ${day.accuracy}%`}
+                            />
+                          ) : null}
                         </div>
-                        <div className="text-center text-xs text-slate-500">
+                        <div className="text-center text-[11px] text-slate-500 md:text-xs">
                           <p>{day.label}</p>
                           <p className="mt-1 font-semibold text-slate-700">{day.answeredCount} 題</p>
+                          <p className="mt-1 text-[10px] text-slate-500 md:text-[11px]">
+                            {day.hasActivity ? `${day.accuracy}%` : '—'}
+                          </p>
                         </div>
                       </div>
                     )
                   })}
                 </div>
+                </div>
 
-                <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-600">
                   <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-blue-500" />
-                    刷題量
+                    <span className="h-3 w-3 rounded-sm bg-blue-500" />
+                    作答題數
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                    正確率標記
+                    正確率
                   </span>
+                </div>
+
+                <div className="mt-4 rounded-[1.25rem] border border-blue-100 bg-blue-50/70 px-4 py-3">
+                  <p className="text-sm font-medium leading-relaxed text-slate-700">{sevenDayTrend.insight}</p>
                 </div>
               </div>
             )}

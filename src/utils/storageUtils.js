@@ -7,15 +7,34 @@ const STUDY_STATS_KEY = 'radiographer_exam_bank_study_stats'
 const DAILY_WRONG_QUESTIONS_KEY = 'radiographer_exam_bank_daily_wrong_questions'
 const MOCK_EXAM_RESULTS_KEY = 'radiographer_exam_bank_mock_exam_results'
 const FULL_MOCK_EXAM_RESULTS_KEY = 'radiographer_exam_bank_full_mock_exam_results'
+const GROWTH_ANSWER_LOG_KEY = 'radiographer_exam_bank_growth_answer_logs'
+const GROWTH_DAILY_STATS_KEY = 'radiographer_exam_bank_growth_daily_stats'
+const GROWTH_QUESTION_STATE_KEY = 'radiographer_exam_bank_growth_question_states'
+const GUEST_USER_ID_KEY = 'radiographer_exam_bank_guest_user_id'
+const SCOPED_KEY_SEPARATOR = '__'
 const DEFAULT_DAILY_GOAL = 40
 const MIN_DAILY_GOAL = 1
 const MAX_DAILY_GOAL = 480
+const USER_PROGRESS_BASE_KEYS = [
+  WRONG_BOOK_KEY,
+  BOOKMARK_KEY,
+  EXAM_RESULT_KEY_PREFIX,
+  EXAM_DATE_KEY,
+  DAILY_GOAL_KEY,
+  STUDY_STATS_KEY,
+  DAILY_WRONG_QUESTIONS_KEY,
+  MOCK_EXAM_RESULTS_KEY,
+  FULL_MOCK_EXAM_RESULTS_KEY,
+  GROWTH_ANSWER_LOG_KEY,
+  GROWTH_DAILY_STATS_KEY,
+  GROWTH_QUESTION_STATE_KEY,
+]
 
 function canUseStorage() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 }
 
-function readStorageValue(key, fallbackValue) {
+function readRawStorageValue(key, fallbackValue) {
   if (!canUseStorage()) {
     return fallbackValue
   }
@@ -32,7 +51,7 @@ function readStorageValue(key, fallbackValue) {
   }
 }
 
-function writeStorageValue(key, value) {
+function writeRawStorageValue(key, value) {
   if (!canUseStorage()) {
     return
   }
@@ -40,13 +59,129 @@ function writeStorageValue(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
-function readStorageArray(key) {
-  const parsed = readStorageValue(key, [])
+function getCurrentAuthenticatedUserId() {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+
+  const globalCandidates = [
+    window.__RADIOGRAPHER_CURRENT_USER__?.id,
+    window.currentUser?.id,
+  ]
+
+  for (const candidate of globalCandidates) {
+    if (candidate) {
+      return String(candidate)
+    }
+  }
+
+  if (!canUseStorage()) {
+    return ''
+  }
+
+  const storageCandidates = [
+    'radiographer_exam_bank_current_user',
+    'currentUser',
+    'current_user',
+    'auth_user',
+    'user',
+  ]
+
+  for (const key of storageCandidates) {
+    try {
+      const rawValue = window.localStorage.getItem(key)
+
+      if (!rawValue) {
+        continue
+      }
+
+      const parsedValue = JSON.parse(rawValue)
+      const candidateId =
+        parsedValue?.id ||
+        parsedValue?.userId ||
+        parsedValue?.uid ||
+        parsedValue?.user?.id ||
+        parsedValue?.currentUser?.id
+
+      if (candidateId) {
+        return String(candidateId)
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return ''
+}
+
+function getOrCreateGuestUserId() {
+  if (!canUseStorage()) {
+    return 'guest'
+  }
+
+  const existingGuestId = window.localStorage.getItem(GUEST_USER_ID_KEY)
+
+  if (existingGuestId) {
+    return existingGuestId
+  }
+
+  const nextGuestId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  window.localStorage.setItem(GUEST_USER_ID_KEY, nextGuestId)
+  return nextGuestId
+}
+
+export function getCurrentEffectiveUserId() {
+  return getCurrentAuthenticatedUserId() || getOrCreateGuestUserId()
+}
+
+export function getScopedStorageKey(baseKey, userId = getCurrentEffectiveUserId()) {
+  return `${baseKey}${SCOPED_KEY_SEPARATOR}${userId || 'guest'}`
+}
+
+function getCurrentUserScopedSuffix(userId = getCurrentEffectiveUserId()) {
+  return `${SCOPED_KEY_SEPARATOR}${userId || 'guest'}`
+}
+
+function readStorageValue(key, fallbackValue, options = {}) {
+  const { scoped = true } = options
+  const targetKey = scoped ? getScopedStorageKey(key) : key
+  const parsedScopedValue = readRawStorageValue(targetKey, undefined)
+
+  if (parsedScopedValue !== undefined) {
+    return parsedScopedValue
+  }
+
+  if (!scoped) {
+    return fallbackValue
+  }
+
+  const legacyValue = readRawStorageValue(key, undefined)
+
+  if (legacyValue !== undefined) {
+    writeRawStorageValue(targetKey, legacyValue)
+    return legacyValue
+  }
+
+  return fallbackValue
+}
+
+function writeStorageValue(key, value, options = {}) {
+  const { scoped = true } = options
+  const targetKey = scoped ? getScopedStorageKey(key) : key
+  writeRawStorageValue(targetKey, value)
+}
+
+function readStorageArray(key, options = {}) {
+  const parsed = readStorageValue(key, [], options)
   return Array.isArray(parsed) ? parsed : []
 }
 
-function writeStorageArray(key, value) {
-  writeStorageValue(key, value)
+function writeStorageArray(key, value, options = {}) {
+  writeStorageValue(key, value, options)
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -603,9 +738,10 @@ function getStoredExamResultPayloads() {
   }
 
   const prefix = `${EXAM_RESULT_KEY_PREFIX}:`
+  const scopedSuffix = `${SCOPED_KEY_SEPARATOR}${getCurrentEffectiveUserId()}`
 
   return Object.keys(window.localStorage)
-    .filter((key) => key.startsWith(prefix))
+    .filter((key) => key.startsWith(prefix) && key.endsWith(scopedSuffix))
     .map((key) => {
       try {
         const parsed = JSON.parse(window.localStorage.getItem(key) || 'null')
@@ -1040,24 +1176,11 @@ function getExamResultKey(subject) {
 }
 
 export function saveExamResult(subject, result) {
-  if (!canUseStorage()) {
-    return
-  }
-
-  window.localStorage.setItem(getExamResultKey(subject), JSON.stringify(result))
+  writeStorageValue(getExamResultKey(subject), result)
 }
 
 export function getExamResult(subject) {
-  if (!canUseStorage()) {
-    return null
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(getExamResultKey(subject))
-    return rawValue ? JSON.parse(rawValue) : null
-  } catch {
-    return null
-  }
+  return readStorageValue(getExamResultKey(subject), null)
 }
 
 export function getExamDate() {
@@ -1213,4 +1336,39 @@ export function saveMockExamResult(result) {
 
 export function getRecentMockExamResults(limit = 3) {
   return getRecentSingleSubjectExamResults(limit)
+}
+
+export function clearCurrentUserProgress(userId = getCurrentEffectiveUserId()) {
+  if (!canUseStorage()) {
+    return {
+      effectiveUserId: userId || 'guest',
+      clearedKeys: [],
+      clearedCount: 0,
+    }
+  }
+
+  const effectiveUserId = userId || getCurrentEffectiveUserId()
+  const scopedSuffix = getCurrentUserScopedSuffix(effectiveUserId)
+  const allowedExactKeys = new Set(USER_PROGRESS_BASE_KEYS.map((baseKey) => getScopedStorageKey(baseKey, effectiveUserId)))
+  const allowedPrefixKeys = new Set([EXAM_RESULT_KEY_PREFIX])
+  const clearedKeys = []
+
+  Object.keys(window.localStorage).forEach((storageKey) => {
+    if (!storageKey.endsWith(scopedSuffix)) {
+      return
+    }
+
+    const baseKey = storageKey.slice(0, -scopedSuffix.length)
+
+    if (allowedExactKeys.has(storageKey) || allowedPrefixKeys.has(baseKey)) {
+      window.localStorage.removeItem(storageKey)
+      clearedKeys.push(storageKey)
+    }
+  })
+
+  return {
+    effectiveUserId,
+    clearedKeys,
+    clearedCount: clearedKeys.length,
+  }
 }

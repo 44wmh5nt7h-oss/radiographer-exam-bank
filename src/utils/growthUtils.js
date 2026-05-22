@@ -1,14 +1,15 @@
 import {
   calculateStreak,
+  getCurrentEffectiveUserId,
   getQuestionKey,
   getRecentSingleSubjectExamResults,
+  getScopedStorageKey,
   getStudyStats,
 } from './storageUtils'
 
 const ANSWER_LOG_KEY = 'radiographer_exam_bank_growth_answer_logs'
 const DAILY_STATS_KEY = 'radiographer_exam_bank_growth_daily_stats'
 const QUESTION_STATE_KEY = 'radiographer_exam_bank_growth_question_states'
-const LOCAL_USER_ID = 'local-user'
 const SUBJECT_FOCUS_THRESHOLD = 10
 
 function canUseStorage() {
@@ -21,12 +22,22 @@ function readStorageValue(key, fallbackValue) {
   }
 
   try {
-    const rawValue = window.localStorage.getItem(key)
-    if (!rawValue) {
+    const scopedKey = getScopedStorageKey(key)
+    const scopedValue = window.localStorage.getItem(scopedKey)
+
+    if (scopedValue) {
+      return JSON.parse(scopedValue)
+    }
+
+    const legacyValue = window.localStorage.getItem(key)
+
+    if (!legacyValue) {
       return fallbackValue
     }
 
-    return JSON.parse(rawValue)
+    const parsedLegacyValue = JSON.parse(legacyValue)
+    window.localStorage.setItem(scopedKey, JSON.stringify(parsedLegacyValue))
+    return parsedLegacyValue
   } catch {
     return fallbackValue
   }
@@ -37,7 +48,7 @@ function writeStorageValue(key, value) {
     return
   }
 
-  window.localStorage.setItem(key, JSON.stringify(value))
+  window.localStorage.setItem(getScopedStorageKey(key), JSON.stringify(value))
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -106,8 +117,10 @@ function writeQuestionStateMap(value) {
 }
 
 function buildQuestionState(previousState = {}, nextFields = {}) {
+  const effectiveUserId = getCurrentEffectiveUserId()
+
   return {
-    userId: LOCAL_USER_ID,
+    userId: effectiveUserId,
     questionId: nextFields.questionId || previousState.questionId || '',
     subject: nextFields.subject || previousState.subject || '',
     wrongCount: Number(nextFields.wrongCount ?? previousState.wrongCount ?? 0),
@@ -129,9 +142,10 @@ function calculateGrowthXp({ answeredCount = 0, correctCount = 0, reviewedWrongC
 }
 
 function updateDailyGrowthStats(dateKey, nextDelta = {}) {
+  const effectiveUserId = getCurrentEffectiveUserId()
   const dailyStatsMap = getGrowthDailyStatsMap()
   const currentStats = dailyStatsMap[dateKey] || {
-    userId: LOCAL_USER_ID,
+    userId: effectiveUserId,
     date: dateKey,
     answeredCount: 0,
     correctCount: 0,
@@ -152,7 +166,7 @@ function updateDailyGrowthStats(dateKey, nextDelta = {}) {
   const xp = Number(currentStats.xp || 0) + Number(nextDelta.xp || 0)
 
   dailyStatsMap[dateKey] = {
-    userId: LOCAL_USER_ID,
+    userId: effectiveUserId,
     date: dateKey,
     answeredCount,
     correctCount,
@@ -246,7 +260,7 @@ export function recordGrowthFromExamSubmission(resultPayload = {}) {
     questionStateMap[questionId] = buildQuestionState(previousState, nextStateFields)
 
     answerLogs.push({
-      userId: LOCAL_USER_ID,
+      userId: getCurrentEffectiveUserId(),
       questionId,
       subject: item.subject || '',
       isCorrect: item.status === 'correct',
@@ -284,7 +298,7 @@ function getMergedDailyStatsMap() {
       })
 
     mergedMap[dateKey] = {
-      userId: LOCAL_USER_ID,
+      userId: getCurrentEffectiveUserId(),
       date: dateKey,
       answeredCount,
       correctCount,
@@ -332,16 +346,48 @@ export function getSevenDayGrowthData() {
       wrongCount: Number(stats.wrongCount || 0),
       accuracy: Number(stats.accuracy || 0),
       xp: Number(stats.xp || 0),
+      hasActivity: Number(stats.answeredCount || 0) > 0,
     }
   })
 
   const totalAnswered = days.reduce((total, day) => total + day.answeredCount, 0)
+  const totalCorrect = days.reduce((total, day) => total + day.correctCount, 0)
+  const activeDays = days.filter((day) => day.answeredCount > 0).length
+  const averageAccuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0
+  const bestDay =
+    [...days]
+      .filter((day) => day.answeredCount > 0)
+      .sort((left, right) => right.answeredCount - left.answeredCount)[0] || null
+  const bestAccuracyDay =
+    [...days]
+      .filter((day) => day.answeredCount > 0)
+      .sort((left, right) => right.accuracy - left.accuracy || right.answeredCount - left.answeredCount)[0] || null
+
+  let insight = '最近 7 天尚無作答紀錄。'
+
+  if (totalAnswered > 0) {
+    if (activeDays === 1 && bestDay) {
+      insight = `${bestDay.label} 是最近 7 天唯一有作答的一天，共完成 ${bestDay.answeredCount} 題。`
+    } else if (bestDay) {
+      insight = `你本週主要集中在 ${activeDays} 天刷題，${bestDay.label} 是作答量最高的一天。`
+    }
+
+    if (averageAccuracy > 0 && activeDays > 0) {
+      insight += ` 平均正確率 ${averageAccuracy}%。`
+    }
+  }
 
   return {
     days,
     totalAnswered,
+    totalCorrect,
+    activeDays,
+    averageAccuracy,
+    bestDay,
+    bestAccuracyDay,
+    insight,
     streak: calculateStreak(),
-    hasEnoughData: days.filter((day) => day.answeredCount > 0).length >= 2,
+    hasEnoughData: totalAnswered > 0,
     maxAnsweredCount: Math.max(...days.map((day) => day.answeredCount), 0),
   }
 }
