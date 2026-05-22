@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import Button from '../components/Button'
 import SubjectCard from '../components/SubjectCard'
+import SeoMeta from '../components/SeoMeta'
 import { QUIZ_LENGTH } from '../utils/quizUtils'
 import {
   analyzeTodayWrongTags,
@@ -381,6 +382,11 @@ function HomePage() {
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <SeoMeta
+        title="放射師國考刷題庫｜歷屆試題、錯題本、模擬考與成長追蹤"
+        description="放射師國考刷題庫提供醫事放射師國考歷屆試題練習、錯題本、收藏題、科目篩選、模擬考、個人成長追蹤與弱科分析，幫助考生提升刷題效率。"
+        canonicalPath="/"
+      />
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <section className="relative overflow-hidden rounded-[2.2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_34%),linear-gradient(135deg,#ffffff_0%,#ffffff_56%,#eff6ff_100%)] p-6 shadow-sm md:p-8">
           <div className="pointer-events-none absolute -left-16 bottom-0 h-40 w-40 rounded-full bg-blue-100/50 blur-3xl" />
@@ -761,6 +767,22 @@ function HomePage() {
               </div>
             </section>
           </div>
+        </section>
+
+        <section aria-label="網站功能介紹" className="sr-only">
+          <h1>放射師國考刷題庫</h1>
+          <p>本網站提供醫事放射師國考歷屆試題練習、錯題本、收藏題、科目篩選、模擬考與個人成長追蹤。</p>
+          <h2>主要功能</h2>
+          <ul>
+            <li>歷屆試題刷題</li>
+            <li>科目分類練習</li>
+            <li>錯題本</li>
+            <li>收藏題</li>
+            <li>模擬考</li>
+            <li>最近作答紀錄</li>
+            <li>個人成長分析</li>
+            <li>弱科提醒</li>
+          </ul>
         </section>
       </div>
     </main>

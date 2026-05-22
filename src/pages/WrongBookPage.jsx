@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
+import SeoMeta from '../components/SeoMeta'
 import { EXAM_SUBJECTS } from '../constants/subjects'
 import {
   clearWrongBook,
@@ -310,6 +311,12 @@ function WrongBookPage() {
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <SeoMeta
+        title="錯題本｜放射師國考刷題庫"
+        description="錯題本會集中整理作答後的高風險題目，方便使用者回頭複習與查看詳解。"
+        canonicalPath="/wrong-book"
+        robots="noindex,nofollow"
+      />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <Navbar subtitle="Wrong Answer Book" title="錯題本" />
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
+import SeoMeta from '../components/SeoMeta'
 import { EXAM_SUBJECTS } from '../constants/subjects'
 import { extractQuestionTags, getBookmarkIds, getQuestionKey, removeFavoriteQuestion } from '../utils/storageUtils'
 import { getCanonicalSubjectName } from '../utils/subjectUtils'
@@ -257,6 +258,12 @@ function BookmarkPage() {
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <SeoMeta
+        title="收藏題｜放射師國考刷題庫"
+        description="收藏題頁面會集中管理使用者標記的重要題目，方便後續複習。"
+        canonicalPath="/bookmarks"
+        robots="noindex,nofollow"
+      />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <Navbar subtitle="Bookmarks" title="收藏題" />
 

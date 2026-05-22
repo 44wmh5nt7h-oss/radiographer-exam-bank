@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import QuestionContent, { QuestionRichText } from '../components/QuestionContent'
+import SeoMeta from '../components/SeoMeta'
 import {
   extractQuestionTags,
   getBookmarkIds,
@@ -255,6 +256,12 @@ function QuestionDetailPage() {
   if (isLoadingQuestion) {
     return (
       <main className="min-h-screen px-4 py-8 md:px-6">
+        <SeoMeta
+          title="題目詳情｜放射師國考刷題庫"
+          description="題目詳情頁可查看完整題目內容、答案與詳解。"
+          canonicalPath={`/questions/${encodeURIComponent(questionKey || decodedQuestionId || '')}`}
+          robots="noindex,nofollow"
+        />
         <div className="mx-auto flex max-w-4xl flex-col gap-6">
           <Navbar subtitle="Question Review" title="錯題詳情" />
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
@@ -268,6 +275,12 @@ function QuestionDetailPage() {
   if (!question) {
     return (
       <main className="min-h-screen px-4 py-8 md:px-6">
+        <SeoMeta
+          title="題目詳情｜放射師國考刷題庫"
+          description="題目詳情頁可查看完整題目內容、答案與詳解。"
+          canonicalPath={`/questions/${encodeURIComponent(questionKey || decodedQuestionId || '')}`}
+          robots="noindex,nofollow"
+        />
         <div className="mx-auto flex max-w-4xl flex-col gap-6">
           <Navbar subtitle="Question Review" title="錯題詳情" />
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
@@ -285,6 +298,12 @@ function QuestionDetailPage() {
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-6">
+      <SeoMeta
+        title="題目詳情｜放射師國考刷題庫"
+        description="題目詳情頁可查看完整題目內容、答案與詳解。"
+        canonicalPath={`/questions/${encodeURIComponent(questionKey || decodedQuestionId || '')}`}
+        robots="noindex,nofollow"
+      />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <Navbar
           subtitle="Question Review"

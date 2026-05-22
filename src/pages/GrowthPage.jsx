@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
+import SeoMeta from '../components/SeoMeta'
 import {
   getPersonalGrowthRecords,
   getSevenDayGrowthData,
@@ -54,6 +55,11 @@ function GrowthPage() {
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
+      <SeoMeta
+        title="我的成長｜刷題紀錄、科目戰力與錯題清除"
+        description="我的成長頁可視覺化呈現最近 7 天作答狀況、科目戰力、錯題清除進度與個人紀錄，協助考生追蹤近期刷題表現。"
+        canonicalPath="/growth"
+      />
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Navbar subtitle="My Growth" title="我的成長" />
 

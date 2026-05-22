@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import ResultSummary from '../components/ResultSummary'
+import SeoMeta from '../components/SeoMeta'
 import { getExamResult, getQuestionKey, saveExamResult } from '../utils/storageUtils'
 import { calculateExamResult } from '../utils/quizUtils'
 
@@ -96,6 +97,12 @@ function ResultPage() {
   if (!invariantCheck) {
     return (
       <main className="min-h-screen px-4 py-8 md:px-6">
+        <SeoMeta
+          title={`${subject || '測驗結果'}｜放射師國考刷題庫`}
+          description="測驗結果頁會整理當次作答的答對、答錯與未作答狀態。"
+          canonicalPath={`/results/${encodeURIComponent(subject || '')}`}
+          robots="noindex,nofollow"
+        />
         <div className="mx-auto flex max-w-4xl flex-col gap-6">
           <Navbar subtitle="Timed Subject Result" title="測驗結果" />
           <section className="rounded-[1.75rem] border border-rose-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
@@ -123,6 +130,12 @@ function ResultPage() {
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-6">
+      <SeoMeta
+        title={`${subject || '測驗結果'}｜放射師國考刷題庫`}
+        description="測驗結果頁會整理當次作答的答對、答錯與未作答狀態。"
+        canonicalPath={`/results/${encodeURIComponent(subject || '')}`}
+        robots="noindex,nofollow"
+      />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <Navbar subtitle="Timed Subject Result" title={subject ? `${subject} 單科測驗結果` : '單科測驗結果'} />
 

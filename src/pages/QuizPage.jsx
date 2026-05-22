@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import QuestionCard from '../components/QuestionCard'
+import SeoMeta from '../components/SeoMeta'
 import { EXAM_DURATION_SECONDS } from '../constants/subjects'
 import {
   QUIZ_LENGTH,
@@ -330,6 +331,12 @@ function QuizPage() {
 
   return (
     <main className="min-h-screen px-4 py-8 pb-28 md:px-6 md:pb-8">
+      <SeoMeta
+        title={`${subject || '單科測驗'}｜放射師國考刷題庫`}
+        description="單科限時測驗頁面提供歷屆試題作答與計時練習。"
+        canonicalPath={`/quiz/${encodeURIComponent(subject || '')}`}
+        robots="noindex,nofollow"
+      />
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Navbar
           subtitle="Timed Subject Exam"

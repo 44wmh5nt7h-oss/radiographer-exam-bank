@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://radiographer-exam-bank.pages.dev/sitemap.xml
