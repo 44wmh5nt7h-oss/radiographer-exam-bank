@@ -58,11 +58,20 @@ function QuizPage() {
   const [isNavigatorOpen, setIsNavigatorOpen] = useState(false)
   const countedAnswerIdsRef = useRef(new Set())
 
+  const getQuestionStateKey = (question) => getQuestionKey(question) || question?.id || ''
+  const getStoredAnswer = (question) => {
+    const questionStateKey = getQuestionStateKey(question)
+
+    if (!questionStateKey) {
+      return ''
+    }
+
+    return answerMap[questionStateKey] || ''
+  }
+
   const currentQuestion = examQuestions[currentIndex]
-  const currentQuestionKey = currentQuestion ? getQuestionKey(currentQuestion) : ''
-  const selectedAnswer = currentQuestion
-    ? answerMap[currentQuestionKey] || answerMap[currentQuestion.id] || ''
-    : ''
+  const currentQuestionKey = currentQuestion ? getQuestionStateKey(currentQuestion) : ''
+  const selectedAnswer = currentQuestion ? getStoredAnswer(currentQuestion) : ''
   const answeredCount = Object.keys(answerMap).length
   const timerTextColorClassName = secondsLeft <= 599 ? 'text-rose-600' : 'text-slate-950'
 
@@ -273,7 +282,11 @@ function QuizPage() {
       return
     }
 
-    const questionKey = getQuestionKey(currentQuestion)
+    const questionKey = getQuestionStateKey(currentQuestion)
+
+    if (!questionKey) {
+      return
+    }
 
     if (!countedAnswerIdsRef.current.has(questionKey)) {
       countedAnswerIdsRef.current.add(questionKey)
@@ -297,6 +310,12 @@ function QuizPage() {
 
   const handleRestart = () => {
     if (!hasEnoughQuestions) {
+      return
+    }
+
+    const shouldRestart = window.confirm('重新抽題會清除目前作答進度、答案與剩餘時間，確定要重新抽題嗎？')
+
+    if (!shouldRestart) {
       return
     }
 
@@ -430,7 +449,7 @@ function QuizPage() {
                 totalQuestions={QUIZ_LENGTH}
                 question={currentQuestion}
                 selectedAnswer={selectedAnswer}
-                isBookmarked={bookmarkIds.includes(currentQuestion.id)}
+                isBookmarked={bookmarkIds.includes(currentQuestionKey)}
                 onSelectAnswer={handleSelectAnswer}
                 onToggleBookmark={handleToggleBookmark}
               />
@@ -472,7 +491,8 @@ function QuizPage() {
               </div>
               <div className="mt-4 grid grid-cols-5 gap-2">
                 {examQuestions.map((question, index) => {
-                  const isAnswered = Boolean(answerMap[question.id])
+                  const questionStateKey = getQuestionStateKey(question)
+                  const isAnswered = Boolean(questionStateKey && answerMap[questionStateKey])
                   const isCurrent = currentIndex === index
                   const className = isCurrent
                     ? 'border-slate-900 bg-slate-900 text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)]'
@@ -482,7 +502,7 @@ function QuizPage() {
 
                   return (
                     <button
-                      key={question.id}
+                      key={questionStateKey || question.id || index}
                       type="button"
                       onClick={() => handleMoveQuestion(index)}
                       className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${className}`}
@@ -554,7 +574,8 @@ function QuizPage() {
                 </div>
                 <div className="mt-4 grid max-h-[52vh] grid-cols-5 gap-2 overflow-y-auto pr-1">
                   {examQuestions.map((question, index) => {
-                    const isAnswered = Boolean(answerMap[question.id])
+                    const questionStateKey = getQuestionStateKey(question)
+                    const isAnswered = Boolean(questionStateKey && answerMap[questionStateKey])
                     const isCurrent = currentIndex === index
                     const className = isCurrent
                       ? 'border-slate-900 bg-slate-900 text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)]'
@@ -564,7 +585,7 @@ function QuizPage() {
 
                     return (
                       <button
-                        key={question.id}
+                        key={questionStateKey || question.id || index}
                         type="button"
                         onClick={() => handleMoveQuestion(index)}
                         className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${className}`}

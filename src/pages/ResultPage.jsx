@@ -6,6 +6,7 @@ import ResultSummary from '../components/ResultSummary'
 import SeoMeta from '../components/SeoMeta'
 import { getExamResult, getQuestionKey, saveExamResult } from '../utils/storageUtils'
 import { calculateExamResult } from '../utils/quizUtils'
+import { formatQuestionMetadata } from '../utils/subjectUtils'
 
 function ResultPage() {
   const location = useLocation()
@@ -48,10 +49,15 @@ function ResultPage() {
         ...question,
         _examIndex: index + 1,
         _listKey: question.questionKey || getQuestionKey(question) || question.id || `${index}`,
-        _displayYear: question.year || '',
-        _displayExamRound: question.exam_round || question.examRound || question.session || '',
-        _displaySubject: question.subject || subject || '',
-        _displayQuestionNumber: question.question_number || question.questionNumber || index + 1,
+        _metadataLabel: formatQuestionMetadata(
+          {
+            ...question,
+            subject: question.subject || subject || '',
+          },
+          {
+            fallback: '來源資訊未提供',
+          },
+        ),
         _displayQuestionText: question.question || question.questionText || question.stem || '',
         _displayAnswer: question.correctAnswer || question.answer || '',
       })),
@@ -196,7 +202,7 @@ function ResultPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-700">
-                      測驗第 {question._examIndex} 題｜來源：民國 {question._displayYear} 年｜{question._displayExamRound}｜{question._displaySubject}｜第 {question._displayQuestionNumber} 題
+                      測驗第 {question._examIndex} 題｜{question._metadataLabel}
                     </p>
                     <h2 className="mt-2 text-lg font-bold leading-relaxed text-slate-900">
                       {question._displayQuestionText}

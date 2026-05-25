@@ -84,6 +84,24 @@ export function getCanonicalSubjectName(value) {
   return normalizeSubjectValue(value)
 }
 
+export function formatExamRoundLabel(value) {
+  const normalizedValue = normalizeRoundValue(value)
+
+  if (!normalizedValue) {
+    return ''
+  }
+
+  if (normalizedValue === '1') {
+    return '第一次'
+  }
+
+  if (normalizedValue === '2') {
+    return '第二次'
+  }
+
+  return String(value || normalizedValue)
+}
+
 function parseKeyLikeValue(value) {
   const decodedValue = typeof value === 'string' ? decodeURIComponent(value) : ''
   const trimmedValue = decodedValue.trim()
@@ -126,7 +144,7 @@ function parseKeyLikeValue(value) {
   }
 }
 
-function buildQuestionDescriptor(questionLike) {
+export function buildQuestionDescriptor(questionLike) {
   if (typeof questionLike === 'string') {
     return parseKeyLikeValue(questionLike)
   }
@@ -159,6 +177,39 @@ function buildQuestionDescriptor(questionLike) {
     subject,
     questionNumber,
   }
+}
+
+export function formatQuestionMetadata(questionLike, options = {}) {
+  const {
+    prefix = '',
+    fallback = '來源資訊未提供',
+  } = options
+  const descriptor = buildQuestionDescriptor(questionLike)
+  const parts = []
+
+  if (descriptor.year) {
+    parts.push(`民國 ${descriptor.year} 年`)
+  }
+
+  const roundLabel = formatExamRoundLabel(descriptor.round)
+  if (roundLabel) {
+    parts.push(roundLabel)
+  }
+
+  if (descriptor.subject) {
+    parts.push(descriptor.subject)
+  }
+
+  if (descriptor.questionNumber) {
+    parts.push(`第 ${descriptor.questionNumber} 題`)
+  }
+
+  if (parts.length === 0) {
+    return fallback
+  }
+
+  const content = parts.join('｜')
+  return prefix ? `${prefix}${content}` : content
 }
 
 function hasCompleteQuestionData(questionLike) {

@@ -1,5 +1,6 @@
 import Button from './Button'
 import QuestionContent, { QuestionRichText } from './QuestionContent'
+import { formatQuestionMetadata } from '../utils/subjectUtils'
 
 function QuestionCard({
   questionNumber,
@@ -10,6 +11,11 @@ function QuestionCard({
   onSelectAnswer,
   onToggleBookmark,
 }) {
+  const metadataLabel = formatQuestionMetadata(question, {
+    prefix: '來源：',
+    fallback: '來源資訊未提供',
+  })
+
   return (
     <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
       <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-200 pb-5">
@@ -28,15 +34,7 @@ function QuestionCard({
       </div>
 
       <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-        <div className="flex flex-wrap items-center gap-2">
-          <span>來源：民國 {question.year} 年</span>
-          <span className="text-slate-300">|</span>
-          <span>{question.exam_round}</span>
-          <span className="text-slate-300">|</span>
-          <span>{question.subject}</span>
-          <span className="text-slate-300">|</span>
-          <span>第 {question.question_number} 題</span>
-        </div>
+        <div className="flex flex-wrap items-center gap-2">{metadataLabel}</div>
       </div>
 
       <QuestionContent question={question} />

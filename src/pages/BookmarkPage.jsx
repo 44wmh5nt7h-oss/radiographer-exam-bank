@@ -4,8 +4,14 @@ import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import SeoMeta from '../components/SeoMeta'
 import { EXAM_SUBJECTS } from '../constants/subjects'
-import { extractQuestionTags, getBookmarkIds, getQuestionKey, removeFavoriteQuestion } from '../utils/storageUtils'
-import { getCanonicalSubjectName } from '../utils/subjectUtils'
+import {
+  extractQuestionTags,
+  getBookmarkIds,
+  getLatestBookmarkedQuestionKey,
+  getQuestionKey,
+  removeFavoriteQuestion,
+} from '../utils/storageUtils'
+import { formatQuestionMetadata, getCanonicalSubjectName } from '../utils/subjectUtils'
 import { loadQuestionsByKeys } from '../utils/questionDataLoader'
 
 const ALL_SUBJECTS_LABEL = '全部'
@@ -75,105 +81,6 @@ function normalizeQuestionSubject(question) {
 
 function getDisplaySubject(question) {
   return pickValue(question?.subject, question?.subjectName, question?.category)
-}
-
-function parseMetadataFromId(id) {
-  const rawId = pickValue(id)
-
-  if (!rawId) {
-    return {}
-  }
-
-  const match = String(rawId).match(/^(\d{2,3})-(\d+)-(.+)-(\d{1,3})$/)
-
-  if (!match) {
-    return {}
-  }
-
-  const [, year, examRound, subject, questionNumber] = match
-
-  return {
-    year,
-    examRound,
-    subject,
-    questionNumber,
-  }
-}
-
-function formatExamRound(examRound) {
-  const value = pickValue(examRound)
-
-  if (!value) {
-    return ''
-  }
-
-  if (value === '1') {
-    return '第一次'
-  }
-
-  if (value === '2') {
-    return '第二次'
-  }
-
-  return value
-}
-
-function normalizeQuestionNumber(questionNumber) {
-  const value = pickValue(questionNumber)
-
-  if (!value) {
-    return ''
-  }
-
-  const numericValue = Number(value)
-  return Number.isFinite(numericValue) ? String(numericValue) : value
-}
-
-function formatQuestionMetadata(question) {
-  const fallback = parseMetadataFromId(question?.id)
-  const year = pickValue(question?.year, question?.examYear, question?.rocYear, question?.questionYear, fallback.year)
-  const roundValue = pickValue(
-    question?.exam_round,
-    question?.examRound,
-    question?.session,
-    question?.examSession,
-    question?.round,
-    question?.time,
-    fallback.examRound,
-  )
-  const round = formatExamRound(roundValue)
-  const subject = getCanonicalSubjectName(
-    pickValue(question?.subject, question?.subjectName, question?.category, fallback.subject),
-  )
-  const questionNumber = normalizeQuestionNumber(
-    question?.question_number,
-    question?.questionNumber,
-    question?.number,
-    question?.index,
-    question?.questionIndex,
-    question?.originalIndex,
-    fallback.questionNumber,
-  )
-
-  const parts = []
-
-  if (year) {
-    parts.push(`民國 ${year} 年`)
-  }
-
-  if (round) {
-    parts.push(round)
-  }
-
-  if (subject) {
-    parts.push(subject)
-  }
-
-  if (questionNumber) {
-    parts.push(`第 ${questionNumber} 題`)
-  }
-
-  return parts.length > 0 ? `歷屆來源：${parts.join('｜')}` : '歷屆來源：未標記'
 }
 
 function BookmarkPage() {
@@ -250,10 +157,29 @@ function BookmarkPage() {
 
     return bookmarkedQuestions.filter((question) => normalizeQuestionSubject(question) === selectedSubject)
   }, [bookmarkedQuestions, selectedSubject])
-  const latestBookmark = bookmarkedQuestions[0] || null
+  const latestBookmarkKey = useMemo(() => getLatestBookmarkedQuestionKey(), [bookmarkIds])
+  const latestBookmark = useMemo(() => {
+    if (bookmarkedQuestions.length === 0) {
+      return null
+    }
+
+    if (latestBookmarkKey) {
+      const matchedQuestion = bookmarkedQuestions.find((question) => getQuestionKey(question) === latestBookmarkKey)
+
+      if (matchedQuestion) {
+        return matchedQuestion
+      }
+    }
+
+    return bookmarkedQuestions[bookmarkedQuestions.length - 1] || null
+  }, [bookmarkedQuestions, latestBookmarkKey])
 
   const handleRemoveBookmark = (question) => {
-    setBookmarkIds(removeFavoriteQuestion(getQuestionKey(question)))
+    const removedQuestionKey = getQuestionKey(question)
+    setBookmarkIds(removeFavoriteQuestion(removedQuestionKey))
+    setBookmarkedQuestions((prev) =>
+      prev.filter((item) => getQuestionKey(item) !== removedQuestionKey),
+    )
   }
 
   return (
@@ -299,7 +225,11 @@ function BookmarkPage() {
             <div className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">最近收藏</p>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-900">
-                {latestBookmark ? `${latestBookmark.subject}｜第 ${latestBookmark.question_number} 題` : '尚無資料'}
+                {latestBookmark
+                  ? formatQuestionMetadata(latestBookmark, {
+                      fallback: '尚無資料',
+                    })
+                  : '尚無資料'}
               </p>
             </div>
           </div>
@@ -373,7 +303,10 @@ function BookmarkPage() {
               const explanation = getReadableExplanation(question)
               const tags = extractQuestionTags(question).slice(0, 6)
               const displaySubject = getDisplaySubject(question) || normalizeQuestionSubject(question)
-              const metadataLabel = formatQuestionMetadata(question)
+              const metadataLabel = formatQuestionMetadata(question, {
+                prefix: '歷屆來源：',
+                fallback: '歷屆來源：未標記',
+              })
 
               return (
                 <article

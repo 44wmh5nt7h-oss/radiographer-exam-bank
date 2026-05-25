@@ -2,6 +2,7 @@ const WRONG_BOOK_KEY = 'radiographer_exam_bank_wrong_book'
 const BOOKMARK_KEY = 'radiographer_exam_bank_bookmarks'
 const EXAM_RESULT_KEY_PREFIX = 'radiographer_exam_bank_exam_result'
 const EXAM_DATE_KEY = 'radiographer_exam_bank_exam_date'
+const LEGACY_EXAM_DATE_KEY = 'exam_date'
 const DAILY_GOAL_KEY = 'radiographer_exam_bank_daily_goal'
 const STUDY_STATS_KEY = 'radiographer_exam_bank_study_stats'
 const DAILY_WRONG_QUESTIONS_KEY = 'radiographer_exam_bank_daily_wrong_questions'
@@ -10,7 +11,9 @@ const FULL_MOCK_EXAM_RESULTS_KEY = 'radiographer_exam_bank_full_mock_exam_result
 const GROWTH_ANSWER_LOG_KEY = 'radiographer_exam_bank_growth_answer_logs'
 const GROWTH_DAILY_STATS_KEY = 'radiographer_exam_bank_growth_daily_stats'
 const GROWTH_QUESTION_STATE_KEY = 'radiographer_exam_bank_growth_question_states'
+const REVIEW_HISTORY_KEY = 'exam_review_history'
 const GUEST_USER_ID_KEY = 'radiographer_exam_bank_guest_user_id'
+const LEGACY_STORAGE_CLAIMS_KEY = 'radiographer_exam_bank_legacy_storage_claims'
 const SCOPED_KEY_SEPARATOR = '__'
 const DEFAULT_DAILY_GOAL = 40
 const MIN_DAILY_GOAL = 1
@@ -28,6 +31,7 @@ const USER_PROGRESS_BASE_KEYS = [
   GROWTH_ANSWER_LOG_KEY,
   GROWTH_DAILY_STATS_KEY,
   GROWTH_QUESTION_STATE_KEY,
+  REVIEW_HISTORY_KEY,
 ]
 
 function canUseStorage() {
@@ -57,6 +61,33 @@ function writeRawStorageValue(key, value) {
   }
 
   window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function normalizeReviewHistoryMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([questionKey]) => Boolean(questionKey))
+      .map(([questionKey, reviewDates]) => [
+        questionKey,
+        Array.isArray(reviewDates) ? reviewDates.filter(Boolean).map((date) => String(date)) : [],
+      ]),
+  )
+}
+
+function normalizeLegacyStorageClaimsMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([storageKey, claimedUserId]) => Boolean(storageKey) && Boolean(claimedUserId))
+      .map(([storageKey, claimedUserId]) => [storageKey, String(claimedUserId)]),
+  )
 }
 
 function getCurrentAuthenticatedUserId() {
@@ -146,6 +177,33 @@ function getCurrentUserScopedSuffix(userId = getCurrentEffectiveUserId()) {
   return `${SCOPED_KEY_SEPARATOR}${userId || 'guest'}`
 }
 
+function getLegacyStorageClaimsMap() {
+  return normalizeLegacyStorageClaimsMap(readRawStorageValue(LEGACY_STORAGE_CLAIMS_KEY, {}))
+}
+
+function writeLegacyStorageClaimsMap(value) {
+  writeRawStorageValue(LEGACY_STORAGE_CLAIMS_KEY, normalizeLegacyStorageClaimsMap(value))
+}
+
+function claimLegacyStorageKeyForUser(storageKey, userId = getCurrentEffectiveUserId()) {
+  if (!storageKey || !userId) {
+    return false
+  }
+
+  const claimsMap = getLegacyStorageClaimsMap()
+  const claimedUserId = claimsMap[storageKey]
+
+  if (!claimedUserId) {
+    writeLegacyStorageClaimsMap({
+      ...claimsMap,
+      [storageKey]: userId,
+    })
+    return true
+  }
+
+  return claimedUserId === userId
+}
+
 function readStorageValue(key, fallbackValue, options = {}) {
   const { scoped = true } = options
   const targetKey = scoped ? getScopedStorageKey(key) : key
@@ -162,17 +220,29 @@ function readStorageValue(key, fallbackValue, options = {}) {
   const legacyValue = readRawStorageValue(key, undefined)
 
   if (legacyValue !== undefined) {
-    writeRawStorageValue(targetKey, legacyValue)
-    return legacyValue
+    const effectiveUserId = getCurrentEffectiveUserId()
+
+    if (claimLegacyStorageKeyForUser(key, effectiveUserId)) {
+      writeRawStorageValue(targetKey, legacyValue)
+      return legacyValue
+    }
   }
 
   return fallbackValue
+}
+
+export function readUserScopedStorageValue(key, fallbackValue, options = {}) {
+  return readStorageValue(key, fallbackValue, options)
 }
 
 function writeStorageValue(key, value, options = {}) {
   const { scoped = true } = options
   const targetKey = scoped ? getScopedStorageKey(key) : key
   writeRawStorageValue(targetKey, value)
+}
+
+export function writeUserScopedStorageValue(key, value, options = {}) {
+  writeStorageValue(key, value, options)
 }
 
 function readStorageArray(key, options = {}) {
@@ -253,7 +323,7 @@ function normalizeQuestionNumber(value) {
 
 function normalizeWrongBookEntry(entry) {
   if (typeof entry === 'string' && entry) {
-    return { key: entry, status: 'active', userAnswer: '' }
+    return { key: entry, questionKey: entry, status: 'active', userAnswer: '' }
   }
 
   if (entry && typeof entry === 'object') {
@@ -265,6 +335,7 @@ function normalizeWrongBookEntry(entry) {
 
     return {
       key,
+      questionKey: entry.questionKey || key,
       status: entry.status || 'active',
       userAnswer: entry.userAnswer || '',
       subject: entry.subject || '',
@@ -622,8 +693,20 @@ export function getQuestionKey(question) {
     return ''
   }
 
+  if (question.questionKey) {
+    return question.questionKey
+  }
+
+  if (question.key) {
+    return question.key
+  }
+
   if (question.id) {
     return question.id
+  }
+
+  if (question.questionId) {
+    return question.questionId
   }
 
   const subject = question.subject || 'unknown-subject'
@@ -645,6 +728,100 @@ export function getWrongBookIds() {
 
 export function getWrongBookItems() {
   return getWrongBookEntries().filter((entry) => entry.status !== 'resolved')
+}
+
+export function getReviewHistory(userId = getCurrentEffectiveUserId()) {
+  if (!canUseStorage()) {
+    return {}
+  }
+
+  try {
+    const scopedKey = getScopedStorageKey(REVIEW_HISTORY_KEY, userId)
+    const scopedValue = window.localStorage.getItem(scopedKey)
+
+    if (scopedValue) {
+      return normalizeReviewHistoryMap(JSON.parse(scopedValue))
+    }
+
+    const legacyValue = window.localStorage.getItem(REVIEW_HISTORY_KEY)
+
+    if (!legacyValue) {
+      return {}
+    }
+
+    const parsedLegacyValue = normalizeReviewHistoryMap(JSON.parse(legacyValue))
+
+    if (claimLegacyStorageKeyForUser(REVIEW_HISTORY_KEY, userId)) {
+      window.localStorage.setItem(scopedKey, JSON.stringify(parsedLegacyValue))
+      return parsedLegacyValue
+    }
+
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+export function writeReviewHistory(reviewHistory, userId = getCurrentEffectiveUserId()) {
+  if (!canUseStorage()) {
+    return
+  }
+
+  window.localStorage.setItem(
+    getScopedStorageKey(REVIEW_HISTORY_KEY, userId),
+    JSON.stringify(normalizeReviewHistoryMap(reviewHistory)),
+  )
+}
+
+export function clearReviewHistoryForQuestion(questionKey, userId = getCurrentEffectiveUserId()) {
+  if (!questionKey) {
+    return getReviewHistory(userId)
+  }
+
+  const reviewHistory = getReviewHistory(userId)
+
+  if (!reviewHistory[questionKey]) {
+    return reviewHistory
+  }
+
+  const nextReviewHistory = { ...reviewHistory }
+  delete nextReviewHistory[questionKey]
+  writeReviewHistory(nextReviewHistory, userId)
+  return nextReviewHistory
+}
+
+export function clearReviewHistoryForQuestions(questionKeys = [], userId = getCurrentEffectiveUserId()) {
+  const normalizedKeys = [...new Set((Array.isArray(questionKeys) ? questionKeys : []).filter(Boolean))]
+
+  if (normalizedKeys.length === 0) {
+    return getReviewHistory(userId)
+  }
+
+  const reviewHistory = getReviewHistory(userId)
+  const nextReviewHistory = { ...reviewHistory }
+  let hasChanges = false
+
+  normalizedKeys.forEach((questionKey) => {
+    if (nextReviewHistory[questionKey]) {
+      delete nextReviewHistory[questionKey]
+      hasChanges = true
+    }
+  })
+
+  if (hasChanges) {
+    writeReviewHistory(nextReviewHistory, userId)
+  }
+
+  return hasChanges ? nextReviewHistory : reviewHistory
+}
+
+export function getTodayReviewedQuestionCount(userId = getCurrentEffectiveUserId()) {
+  const todayKey = getLocalDateKey()
+  const reviewHistory = getReviewHistory(userId)
+
+  return Object.values(reviewHistory).filter(
+    (reviewDates) => Array.isArray(reviewDates) && reviewDates[reviewDates.length - 1] === todayKey,
+  ).length
 }
 
 export function getTodayWrongQuestions() {
@@ -1122,6 +1299,7 @@ export function saveWrongQuestionIds(questionItems) {
 }
 
 export function removeWrongQuestion(questionKey) {
+  clearReviewHistoryForQuestion(questionKey)
   writeWrongBookEntries(getWrongBookEntries().filter((entry) => entry.key !== questionKey))
   return getWrongBookIds()
 }
@@ -1139,11 +1317,16 @@ export function updateWrongQuestionStatus(questionKey, status = 'resolved') {
     status,
   })
 
+  if (status === 'resolved') {
+    clearReviewHistoryForQuestion(questionKey)
+  }
+
   writeWrongBookEntries(Array.from(entryMap.values()))
   return getWrongBookIds()
 }
 
 export function clearWrongBook() {
+  clearReviewHistoryForQuestions(getWrongBookEntries().map((entry) => entry.key || entry.questionKey))
   writeWrongBookEntries([])
   return []
 }
@@ -1185,11 +1368,191 @@ export function getExamResult(subject) {
 
 export function getExamDate() {
   const parsed = readStorageValue(EXAM_DATE_KEY, '')
-  return typeof parsed === 'string' ? parsed : ''
+
+  if (typeof parsed === 'string' && parsed) {
+    return parsed
+  }
+
+  const legacyValue = readRawStorageValue(LEGACY_EXAM_DATE_KEY, '')
+
+  if (typeof legacyValue !== 'string' || !legacyValue) {
+    return ''
+  }
+
+  const effectiveUserId = getCurrentEffectiveUserId()
+
+  if (claimLegacyStorageKeyForUser(LEGACY_EXAM_DATE_KEY, effectiveUserId)) {
+    writeStorageValue(EXAM_DATE_KEY, legacyValue)
+    return legacyValue
+  }
+
+  return ''
+}
+
+function getTimestampFromBookmarkEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return 0
+  }
+
+  const candidateValues = [
+    entry.savedAt,
+    entry.createdAt,
+    entry.updatedAt,
+    entry.date,
+    entry.bookmarkedAt,
+    entry.timestamp,
+  ]
+
+  for (const value of candidateValues) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return value
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsedTime = Date.parse(value)
+
+      if (Number.isFinite(parsedTime)) {
+        return parsedTime
+      }
+    }
+  }
+
+  return 0
+}
+
+export function getLatestBookmarkedQuestionKey() {
+  const rawEntries = readStorageArray(BOOKMARK_KEY)
+
+  if (rawEntries.length === 0) {
+    return ''
+  }
+
+  const normalizedEntries = rawEntries
+    .map((entry, index) => ({
+      key: normalizeBookmarkEntry(entry),
+      timestamp: getTimestampFromBookmarkEntry(entry),
+      index,
+    }))
+    .filter((entry) => Boolean(entry.key))
+
+  if (normalizedEntries.length === 0) {
+    return ''
+  }
+
+  const allEntriesHaveTimestamp = normalizedEntries.every((entry) => entry.timestamp > 0)
+
+  if (!allEntriesHaveTimestamp) {
+    return normalizedEntries[normalizedEntries.length - 1]?.key || ''
+  }
+
+  let latestKey = ''
+  let latestTimestamp = 0
+
+  normalizedEntries.forEach((entry) => {
+    const { key, timestamp } = entry
+
+    if (timestamp > latestTimestamp) {
+      latestTimestamp = timestamp
+      latestKey = key
+    }
+  })
+
+  return latestKey
 }
 
 export function setExamDate(dateString) {
   writeStorageValue(EXAM_DATE_KEY, dateString || '')
+}
+
+export const saveExamDate = setExamDate
+
+export function getDaysToExam() {
+  const examDate = getExamDate()
+
+  if (!examDate) {
+    return null
+  }
+
+  const parsedDate = new Date(examDate)
+
+  if (!Number.isFinite(parsedDate.getTime())) {
+    return null
+  }
+
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const examDateStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate())
+  return Math.round((examDateStart.getTime() - todayStart.getTime()) / 86400000)
+}
+
+export function getStudyRecommendation(daysLeft = getDaysToExam()) {
+  if (daysLeft === null) {
+    return null
+  }
+
+  if (daysLeft < 0) {
+    return {
+      level: 'passed',
+      label: '考試已結束',
+      colorClassName: 'text-slate-600',
+      backgroundClassName: 'bg-slate-50 border-slate-200',
+      description: '原設定的考試日期已經過去，可以重新設定下一次目標日期。',
+      suggestedDailyGoal: 0,
+    }
+  }
+
+  if (daysLeft <= 7) {
+    return {
+      level: 'critical',
+      label: '最後衝刺',
+      colorClassName: 'text-rose-700',
+      backgroundClassName: 'bg-rose-50 border-rose-200',
+      description: `距離考試只剩 ${daysLeft} 天，建議優先複習錯題與收藏題，並維持高密度刷題。`,
+      suggestedDailyGoal: 160,
+    }
+  }
+
+  if (daysLeft <= 14) {
+    return {
+      level: 'sprint',
+      label: '全力衝刺',
+      colorClassName: 'text-orange-700',
+      backgroundClassName: 'bg-orange-50 border-orange-200',
+      description: `距離考試 ${daysLeft} 天，建議每天穩定完成至少 120 題，並安排固定錯題回顧。`,
+      suggestedDailyGoal: 120,
+    }
+  }
+
+  if (daysLeft <= 30) {
+    return {
+      level: 'accelerate',
+      label: '加速推進',
+      colorClassName: 'text-amber-700',
+      backgroundClassName: 'bg-amber-50 border-amber-200',
+      description: `距離考試 ${daysLeft} 天，適合把刷題量提升到每天 80 題並搭配錯題複習。`,
+      suggestedDailyGoal: 80,
+    }
+  }
+
+  if (daysLeft <= 60) {
+    return {
+      level: 'steady',
+      label: '穩定推進',
+      colorClassName: 'text-blue-700',
+      backgroundClassName: 'bg-blue-50 border-blue-200',
+      description: `距離考試 ${daysLeft} 天，建議維持每天 40 題並持續累積正確率。`,
+      suggestedDailyGoal: 40,
+    }
+  }
+
+  return {
+    level: 'maintain',
+    label: '打好基礎',
+    colorClassName: 'text-emerald-700',
+    backgroundClassName: 'bg-emerald-50 border-emerald-200',
+    description: `距離考試還有 ${daysLeft} 天，先建立穩定刷題習慣，每天 20 題即可。`,
+    suggestedDailyGoal: 20,
+  }
 }
 
 export function getDailyGoal() {

@@ -3,52 +3,26 @@ import {
   getCurrentEffectiveUserId,
   getQuestionKey,
   getRecentSingleSubjectExamResults,
-  getScopedStorageKey,
+  readUserScopedStorageValue,
+  getReviewHistory as getStoredReviewHistory,
   getStudyStats,
+  getWrongBookItems,
+  writeUserScopedStorageValue,
+  writeReviewHistory as writeStoredReviewHistory,
 } from './storageUtils'
 
 const ANSWER_LOG_KEY = 'radiographer_exam_bank_growth_answer_logs'
 const DAILY_STATS_KEY = 'radiographer_exam_bank_growth_daily_stats'
 const QUESTION_STATE_KEY = 'radiographer_exam_bank_growth_question_states'
 const SUBJECT_FOCUS_THRESHOLD = 10
-
-function canUseStorage() {
-  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
-}
+export const EBBINGHAUS_INTERVALS = [1, 2, 4, 7, 14, 30]
 
 function readStorageValue(key, fallbackValue) {
-  if (!canUseStorage()) {
-    return fallbackValue
-  }
-
-  try {
-    const scopedKey = getScopedStorageKey(key)
-    const scopedValue = window.localStorage.getItem(scopedKey)
-
-    if (scopedValue) {
-      return JSON.parse(scopedValue)
-    }
-
-    const legacyValue = window.localStorage.getItem(key)
-
-    if (!legacyValue) {
-      return fallbackValue
-    }
-
-    const parsedLegacyValue = JSON.parse(legacyValue)
-    window.localStorage.setItem(scopedKey, JSON.stringify(parsedLegacyValue))
-    return parsedLegacyValue
-  } catch {
-    return fallbackValue
-  }
+  return readUserScopedStorageValue(key, fallbackValue)
 }
 
 function writeStorageValue(key, value) {
-  if (!canUseStorage()) {
-    return
-  }
-
-  window.localStorage.setItem(getScopedStorageKey(key), JSON.stringify(value))
+  writeUserScopedStorageValue(key, value)
 }
 
 function getLocalDateKey(date = new Date()) {
@@ -70,6 +44,10 @@ function getDateFromValue(value) {
 function getDateKeyFromValue(value) {
   const date = getDateFromValue(value)
   return date ? getLocalDateKey(date) : ''
+}
+
+function normalizeIsoDate(value) {
+  return getDateKeyFromValue(value)
 }
 
 function getLastDays(count = 7) {
@@ -114,6 +92,22 @@ function getQuestionStateMap() {
 
 function writeQuestionStateMap(value) {
   writeStorageValue(QUESTION_STATE_KEY, value)
+}
+
+function hasQuestionStateMastery(questionId) {
+  if (!questionId) {
+    return false
+  }
+
+  const questionState = getQuestionStateMap()[questionId]
+
+  return Boolean(
+    questionState
+      && (
+        questionState.masteryLevel === 'mastered'
+        || Number(questionState.correctStreak || 0) >= 2
+      ),
+  )
 }
 
 function buildQuestionState(previousState = {}, nextFields = {}) {
@@ -272,6 +266,90 @@ export function recordGrowthFromExamSubmission(resultPayload = {}) {
   writeQuestionStateMap(questionStateMap)
   writeAnswerLogs(answerLogs.slice(-20000))
   return updateDailyGrowthStats(dateKey, dailyDelta)
+}
+
+export function getReviewHistory() {
+  return getStoredReviewHistory()
+}
+
+export function getReviewStage(questionId) {
+  return getReviewHistory()[questionId]?.length || 0
+}
+
+export function isMastered(questionId) {
+  return getReviewStage(questionId) >= EBBINGHAUS_INTERVALS.length || hasQuestionStateMastery(questionId)
+}
+
+export function markAsReviewed(questionId) {
+  if (!questionId) {
+    return []
+  }
+
+  const todayKey = getLocalDateKey()
+  const reviewHistory = getReviewHistory()
+  const currentReviewDates = Array.isArray(reviewHistory[questionId]) ? reviewHistory[questionId] : []
+
+  if (currentReviewDates[currentReviewDates.length - 1] === todayKey) {
+    return currentReviewDates
+  }
+
+  const nextReviewDates = [...currentReviewDates, todayKey]
+  writeStoredReviewHistory({
+    ...reviewHistory,
+    [questionId]: nextReviewDates,
+  })
+
+  return nextReviewDates
+}
+
+export function getNextReviewDate(questionId, createdDate) {
+  const reviewStage = getReviewStage(questionId)
+  const reviewHistory = getReviewHistory()
+  const baseDateKey = reviewStage > 0
+    ? reviewHistory[questionId]?.[reviewStage - 1]
+    : normalizeIsoDate(createdDate)
+
+  const baseDate = getDateFromValue(baseDateKey) || new Date()
+  const nextReviewDate = new Date(baseDate)
+  const intervalDays = EBBINGHAUS_INTERVALS[Math.min(reviewStage, EBBINGHAUS_INTERVALS.length - 1)]
+  nextReviewDate.setDate(nextReviewDate.getDate() + intervalDays)
+
+  return getLocalDateKey(nextReviewDate)
+}
+
+export function isReviewDueToday(questionId, createdDate) {
+  if (!questionId || isMastered(questionId)) {
+    return false
+  }
+
+  const nextReviewDate = getNextReviewDate(questionId, createdDate)
+
+  if (!nextReviewDate) {
+    return false
+  }
+
+  return nextReviewDate <= getLocalDateKey()
+}
+
+export function getDueForReview() {
+  return getWrongBookItems()
+    .filter((wrongItem) => {
+      const questionKey = wrongItem.questionKey || wrongItem.key || getQuestionKey(wrongItem)
+      const createdDate = wrongItem.createdAt || wrongItem.answeredAt || wrongItem.date
+      return questionKey ? isReviewDueToday(questionKey, createdDate) : false
+    })
+    .map((wrongItem) => {
+      const questionKey = wrongItem.questionKey || wrongItem.key || getQuestionKey(wrongItem)
+      const createdDate = wrongItem.createdAt || wrongItem.answeredAt || wrongItem.date
+
+      return {
+        ...wrongItem,
+        questionKey,
+        reviewStage: getReviewStage(questionKey),
+        nextReviewDate: getNextReviewDate(questionKey, createdDate),
+        mastered: isMastered(questionKey),
+      }
+    })
 }
 
 function getMergedDailyStatsMap() {
@@ -444,16 +522,30 @@ export function getSubjectPowerStats() {
 export function getWrongClearanceSummary() {
   const questionStateMap = getQuestionStateMap()
   const questionStates = Object.values(questionStateMap).filter(Boolean)
+  const wrongItems = getWrongBookItems()
+  const reviewMasteredIds = new Set(
+    wrongItems
+      .filter((wrongItem) => isMastered(wrongItem.questionKey))
+      .map((wrongItem) => wrongItem.questionKey),
+  )
   const weekAgo = new Date()
   weekAgo.setDate(weekAgo.getDate() - 6)
   const weekAgoTime = weekAgo.getTime()
 
   const wrongQuestionStates = questionStates.filter((state) => Number(state.wrongCount || 0) > 0)
   const clearedStates = wrongQuestionStates.filter(
-    (state) => state.masteryLevel === 'mastered' || Number(state.correctStreak || 0) >= 2,
+    (state) =>
+      state.masteryLevel === 'mastered'
+      || Number(state.correctStreak || 0) >= 2
+      || reviewMasteredIds.has(state.questionId),
   )
   const activeRiskStates = wrongQuestionStates.filter(
-    (state) => !(state.masteryLevel === 'mastered' || Number(state.correctStreak || 0) >= 2),
+    (state) =>
+      !(
+        state.masteryLevel === 'mastered'
+        || Number(state.correctStreak || 0) >= 2
+        || reviewMasteredIds.has(state.questionId)
+      ),
   )
   const weeklyClearedCount = clearedStates.filter((state) => Number(state.clearedAt || 0) >= weekAgoTime).length
   const totalTracked = clearedStates.length + activeRiskStates.length

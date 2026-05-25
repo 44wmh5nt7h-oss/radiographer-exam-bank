@@ -14,7 +14,7 @@ import {
   updateWrongQuestionStatus,
 } from '../utils/storageUtils'
 import { getAnswerStatus } from '../utils/quizUtils'
-import { getWrongQuestionDetail, normalizeQuestionKey } from '../utils/subjectUtils'
+import { formatQuestionMetadata, getWrongQuestionDetail, normalizeQuestionKey } from '../utils/subjectUtils'
 import { getQuestionByKey } from '../utils/questionDataLoader'
 
 function getExplanationSource(question) {
@@ -211,18 +211,13 @@ function QuestionDetailPage() {
   const explanationContent = question ? formatExplanation(question) : { type: 'empty' }
   const tags = question ? formatTags(question) : []
   const isUsingCachedWrongItem = Boolean(question?._usedCachedWrongItem)
-  const questionYear = question?.year || wrongBookItem?.year || reviewedQuestion?.year || ''
-  const questionRound =
-    question?.exam_round || question?.examRound || wrongBookItem?.exam_round || reviewedQuestion?.exam_round || ''
-  const questionSubject = question?.subject || wrongBookItem?.subject || reviewedQuestion?.subject || ''
-  const questionNumber =
-    question?.question_number ||
-    question?.questionNumber ||
-    wrongBookItem?.question_number ||
-    wrongBookItem?.questionNumber ||
-    reviewedQuestion?.question_number ||
-    reviewedQuestion?.questionNumber ||
-    ''
+  const questionMetadataLabel = formatQuestionMetadata(
+    question || wrongBookItem || reviewedQuestion || { id: decodedQuestionId },
+    {
+      prefix: '歷屆來源：',
+      fallback: '歷屆來源：未標記',
+    },
+  )
   const returnTarget =
     location.state?.from === 'bookmarks'
       ? { to: '/bookmarks', label: '返回收藏題' }
@@ -325,15 +320,7 @@ function QuestionDetailPage() {
 
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
           <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">
-            <div className="flex flex-wrap items-center gap-2">
-              <span>歷屆來源：民國 {questionYear} 年</span>
-              <span className="text-slate-300">|</span>
-              <span>{questionRound}</span>
-              <span className="text-slate-300">|</span>
-              <span>{questionSubject}</span>
-              <span className="text-slate-300">|</span>
-              <span>第 {questionNumber} 題</span>
-            </div>
+            <div className="flex flex-wrap items-center gap-2">{questionMetadataLabel}</div>
           </div>
 
           <QuestionContent question={question} />
