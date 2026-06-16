@@ -7,6 +7,12 @@ import BookmarkPage from './pages/BookmarkPage'
 import QuestionDetailPage from './pages/QuestionDetailPage'
 import GrowthPage from './pages/GrowthPage'
 import PublicInfoPage from './pages/PublicInfoPage'
+import PlatformHomePage from './pages/PlatformHomePage'
+import ExamCatalogPage from './pages/ExamCatalogPage'
+import WrongReviewSelectPage from './pages/WrongReviewSelectPage'
+import WrongReviewQuizPage from './pages/WrongReviewQuizPage'
+import WrongReviewResultPage from './pages/WrongReviewResultPage'
+import SettingsPage from './pages/SettingsPage'
 
 const publicPageConfigs = {
   features: {
@@ -129,13 +135,19 @@ const publicPageConfigs = {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<PlatformHomePage />} />
+      <Route path="/exams" element={<ExamCatalogPage />} />
+      <Route path="/radiographer" element={<HomePage />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="/features" element={<PublicInfoPage {...publicPageConfigs.features} />} />
       <Route path="/radiographer-exam" element={<PublicInfoPage {...publicPageConfigs.radiographerExam} />} />
       <Route path="/question-bank" element={<PublicInfoPage {...publicPageConfigs.questionBank} />} />
       <Route path="/wrong-notebook" element={<PublicInfoPage {...publicPageConfigs.wrongNotebook} />} />
       <Route path="/mock-exam" element={<PublicInfoPage {...publicPageConfigs.mockExam} />} />
       <Route path="/growth" element={<GrowthPage />} />
+      <Route path="/wrong-review" element={<WrongReviewSelectPage />} />
+      <Route path="/wrong-review/:subject" element={<WrongReviewQuizPage />} />
+      <Route path="/wrong-review/:subject/result" element={<WrongReviewResultPage />} />
       <Route path="/quiz/:subject" element={<QuizPage />} />
       <Route path="/results/:subject" element={<ResultPage />} />
       <Route path="/results/:subject/question/:questionId" element={<QuestionDetailPage />} />

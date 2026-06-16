@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import QuestionCard from '../components/QuestionCard'
@@ -51,6 +52,7 @@ function QuizPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answerMap, setAnswerMap] = useState({})
   const [bookmarkIds, setBookmarkIds] = useState(() => getBookmarkIds())
+  const [flaggedQuestionKeys, setFlaggedQuestionKeys] = useState([])
   const [secondsLeft, setSecondsLeft] = useState(EXAM_DURATION_SECONDS)
   const [hasShownFiveMinuteWarning, setHasShownFiveMinuteWarning] = useState(false)
   const [showTimeWarning, setShowTimeWarning] = useState(false)
@@ -72,6 +74,7 @@ function QuizPage() {
   const currentQuestion = examQuestions[currentIndex]
   const currentQuestionKey = currentQuestion ? getQuestionStateKey(currentQuestion) : ''
   const selectedAnswer = currentQuestion ? getStoredAnswer(currentQuestion) : ''
+  const isCurrentQuestionFlagged = currentQuestionKey ? flaggedQuestionKeys.includes(currentQuestionKey) : false
   const answeredCount = Object.keys(answerMap).length
   const timerTextColorClassName = secondsLeft <= 599 ? 'text-rose-600' : 'text-slate-950'
 
@@ -144,6 +147,7 @@ function QuizPage() {
       setExamQuestions([])
       setCurrentIndex(0)
       setAnswerMap({})
+      setFlaggedQuestionKeys([])
       setSecondsLeft(EXAM_DURATION_SECONDS)
       setHasShownFiveMinuteWarning(false)
       setShowTimeWarning(false)
@@ -155,6 +159,7 @@ function QuizPage() {
     setExamQuestions(generateRandomExamQuestions(subjectQuestions, QUIZ_LENGTH))
     setCurrentIndex(0)
     setAnswerMap({})
+    setFlaggedQuestionKeys([])
     countedAnswerIdsRef.current = new Set()
     setSecondsLeft(EXAM_DURATION_SECONDS)
     setHasShownFiveMinuteWarning(false)
@@ -322,6 +327,7 @@ function QuizPage() {
     setExamQuestions(generateRandomExamQuestions(subjectQuestions, QUIZ_LENGTH))
     setCurrentIndex(0)
     setAnswerMap({})
+    setFlaggedQuestionKeys([])
     countedAnswerIdsRef.current = new Set()
     setSecondsLeft(EXAM_DURATION_SECONDS)
     setHasShownFiveMinuteWarning(false)
@@ -338,7 +344,29 @@ function QuizPage() {
     setBookmarkIds(toggleBookmark(currentQuestion))
   }
 
+  const handleToggleFlagged = () => {
+    if (!currentQuestionKey) {
+      return
+    }
+
+    setFlaggedQuestionKeys((prev) =>
+      prev.includes(currentQuestionKey)
+        ? prev.filter((questionKey) => questionKey !== currentQuestionKey)
+        : [...prev, currentQuestionKey],
+    )
+  }
+
   const handleSubmitClick = () => {
+    if (flaggedQuestionKeys.length > 0) {
+      const shouldContinueWithFlagged = window.confirm(
+        `你還有 ${flaggedQuestionKeys.length} 題已標注，確定要交卷嗎？`,
+      )
+
+      if (!shouldContinueWithFlagged) {
+        return
+      }
+    }
+
     const shouldSubmit = window.confirm('確定要繳交本次測驗嗎？繳交後將無法修改答案。')
 
     if (!shouldSubmit) {
@@ -357,6 +385,7 @@ function QuizPage() {
         robots="noindex,nofollow"
       />
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
+        <BackLink label="返回放射師國考" fallbackTo="/radiographer" />
         <Navbar
           subtitle="Timed Subject Exam"
           title={subject}
@@ -450,8 +479,10 @@ function QuizPage() {
                 question={currentQuestion}
                 selectedAnswer={selectedAnswer}
                 isBookmarked={bookmarkIds.includes(currentQuestionKey)}
+                isFlagged={isCurrentQuestionFlagged}
                 onSelectAnswer={handleSelectAnswer}
                 onToggleBookmark={handleToggleBookmark}
+                onToggleFlagged={handleToggleFlagged}
               />
 
               <div className="hidden md:sticky md:bottom-4 md:z-20 md:block">
@@ -493,9 +524,12 @@ function QuizPage() {
                 {examQuestions.map((question, index) => {
                   const questionStateKey = getQuestionStateKey(question)
                   const isAnswered = Boolean(questionStateKey && answerMap[questionStateKey])
+                  const isFlagged = Boolean(questionStateKey && flaggedQuestionKeys.includes(questionStateKey))
                   const isCurrent = currentIndex === index
                   const className = isCurrent
                     ? 'border-slate-900 bg-slate-900 text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)]'
+                    : isFlagged
+                      ? 'border-amber-300 bg-amber-100 text-amber-900'
                     : isAnswered
                       ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
                       : 'border-slate-200 bg-white text-slate-600'
@@ -513,7 +547,7 @@ function QuizPage() {
                 })}
               </div>
               <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                深色為目前題目，綠色為已作答，白色為未作答。
+                深色為目前題目，黃色為已標注，綠色為已作答，白色為未作答。
               </p>
             </aside>
           </div>
@@ -576,9 +610,12 @@ function QuizPage() {
                   {examQuestions.map((question, index) => {
                     const questionStateKey = getQuestionStateKey(question)
                     const isAnswered = Boolean(questionStateKey && answerMap[questionStateKey])
+                    const isFlagged = Boolean(questionStateKey && flaggedQuestionKeys.includes(questionStateKey))
                     const isCurrent = currentIndex === index
                     const className = isCurrent
                       ? 'border-slate-900 bg-slate-900 text-white shadow-[0_10px_20px_rgba(15,23,42,0.18)]'
+                      : isFlagged
+                        ? 'border-amber-300 bg-amber-100 text-amber-900'
                       : isAnswered
                         ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
                         : 'border-slate-200 bg-white text-slate-600'
@@ -596,7 +633,7 @@ function QuizPage() {
                   })}
                 </div>
                 <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                  深色為目前題目，綠色為已作答，白色為未作答。
+                  深色為目前題目，黃色為已標注，綠色為已作答，白色為未作答。
                 </p>
               </div>
             </div>

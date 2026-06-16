@@ -8,8 +8,13 @@ function QuestionCard({
   question,
   selectedAnswer,
   isBookmarked,
+  isFlagged = false,
   onSelectAnswer,
   onToggleBookmark,
+  onToggleFlagged,
+  showBookmark = true,
+  showFlag = true,
+  modeLabel = '單科限時測驗',
 }) {
   const metadataLabel = formatQuestionMetadata(question, {
     prefix: '來源：',
@@ -20,16 +25,28 @@ function QuestionCard({
     <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
       <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">單科限時測驗</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{modeLabel}</p>
           <span className="mt-2 inline-flex rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800">
             第 {questionNumber} 題 / 共 {totalQuestions} 題
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <span className="text-sm text-slate-500">單選題</span>
-          <Button type="button" variant="secondary" className="px-4 py-2" onClick={onToggleBookmark}>
-            {isBookmarked ? '已收藏' : '加入收藏'}
-          </Button>
+          {showFlag && (
+            <Button
+              type="button"
+              variant={isFlagged ? 'dark' : 'ghost'}
+              className={`px-4 py-2 ${isFlagged ? 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600' : ''}`}
+              onClick={onToggleFlagged}
+            >
+              {isFlagged ? '取消標注' : '標注此題'}
+            </Button>
+          )}
+          {showBookmark && (
+            <Button type="button" variant="secondary" className="px-4 py-2" onClick={onToggleBookmark}>
+              {isBookmarked ? '★ 取消收藏' : '☆ 收藏此題'}
+            </Button>
+          )}
         </div>
       </div>
 

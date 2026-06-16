@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import QuestionContent, { QuestionRichText } from '../components/QuestionContent'
@@ -258,6 +259,7 @@ function QuestionDetailPage() {
           robots="noindex,nofollow"
         />
         <div className="mx-auto flex max-w-4xl flex-col gap-6">
+          <BackLink label={returnTarget.label} fallbackTo={returnTarget.to} />
           <Navbar subtitle="Question Review" title="錯題詳情" />
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
             <p className="text-slate-700">正在載入題目資料...</p>
@@ -277,6 +279,7 @@ function QuestionDetailPage() {
           robots="noindex,nofollow"
         />
         <div className="mx-auto flex max-w-4xl flex-col gap-6">
+          <BackLink label={returnTarget.label} fallbackTo={returnTarget.to} />
           <Navbar subtitle="Question Review" title="錯題詳情" />
           <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
             <p className="text-slate-700">找不到原始題目資料，請確認題庫資料是否已載入</p>
@@ -300,6 +303,7 @@ function QuestionDetailPage() {
         robots="noindex,nofollow"
       />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackLink label={returnTarget.label} fallbackTo={returnTarget.to} />
         <Navbar
           subtitle="Question Review"
           title="錯題詳情"

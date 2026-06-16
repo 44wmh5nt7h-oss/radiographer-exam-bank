@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import SeoMeta from '../components/SeoMeta'
@@ -191,6 +192,7 @@ function BookmarkPage() {
         robots="noindex,nofollow"
       />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackLink label="返回首頁" fallbackTo="/" />
         <Navbar subtitle="Bookmarks" title="收藏題" />
 
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -203,7 +205,7 @@ function BookmarkPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button as={Link} to="/" variant="secondary">
+              <Button as={Link} to="/radiographer" variant="secondary">
                 前往刷題
               </Button>
             </div>
@@ -281,7 +283,7 @@ function BookmarkPage() {
                   在作答或檢討時點選收藏，即可在這裡快速複習。
                 </p>
                 <div className="mt-6">
-                  <Button as={Link} to="/">
+                  <Button as={Link} to="/radiographer">
                     前往刷題
                   </Button>
                 </div>
@@ -385,7 +387,7 @@ function BookmarkPage() {
                         state={{ from: 'bookmarks' }}
                         variant="secondary"
                       >
-                        開始複習
+                        查看完整題目
                       </Button>
                       <Button type="button" variant="ghost" onClick={() => handleRemoveBookmark(question)}>
                         取消收藏

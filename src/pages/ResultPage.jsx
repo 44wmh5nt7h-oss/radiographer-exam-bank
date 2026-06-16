@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import ResultSummary from '../components/ResultSummary'
 import SeoMeta from '../components/SeoMeta'
-import { getExamResult, getQuestionKey, saveExamResult } from '../utils/storageUtils'
+import { extractQuestionTags, getExamResult, getQuestionKey, saveExamResult } from '../utils/storageUtils'
 import { calculateExamResult } from '../utils/quizUtils'
 import { formatQuestionMetadata } from '../utils/subjectUtils'
+import { getStudyActionRecommendation, getTodayFeedbackSummary } from '../utils/recommendationUtils'
 
 function ResultPage() {
   const location = useLocation()
@@ -133,6 +135,20 @@ function ResultPage() {
     { key: 'wrong', label: `答錯 ${summary.wrongCount}` },
     { key: 'unanswered', label: `未作答 ${summary.unansweredCount}` },
   ]
+  const wrongQuestionTags = [...new Set(
+    perQuestionResults
+      .filter((question) => question.status === 'wrong')
+      .flatMap((question) => extractQuestionTags(question))
+      .filter(Boolean),
+  )].slice(0, 3)
+  const wrongQuestionSubjects = [...new Set(
+    perQuestionResults
+      .filter((question) => question.status === 'wrong')
+      .map((question) => question.subject)
+      .filter(Boolean),
+  )].slice(0, 3)
+  const todayFeedback = getTodayFeedbackSummary()
+  const recommendation = getStudyActionRecommendation()
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-6">
@@ -143,6 +159,7 @@ function ResultPage() {
         robots="noindex,nofollow"
       />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackLink label="返回放射師國考" fallbackTo="/radiographer" />
         <Navbar subtitle="Timed Subject Result" title={subject ? `${subject} 單科測驗結果` : '單科測驗結果'} />
 
         <section className="grid gap-4 md:grid-cols-4">
@@ -164,12 +181,39 @@ function ResultPage() {
         </section>
 
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)] md:p-8">
+          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+            <h2 className="text-xl font-black text-slate-950">本次測驗後下一步</h2>
+            <p className="mt-3 text-sm leading-7 text-slate-700">
+              本次答錯 {summary.wrongCount} 題，未作答 {summary.unansweredCount} 題。
+              {wrongQuestionTags.length > 0
+                ? ` 建議先複習：${wrongQuestionTags.join('、')}。`
+                : wrongQuestionSubjects.length > 0
+                  ? ` 錯題主要集中在：${wrongQuestionSubjects.join('、')}。`
+                  : ' 目前沒有足夠標籤資料，建議先查看錯題。'}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">{todayFeedback.nextStep}</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button as={Link} to="/wrong-book" variant="secondary">
+                查看錯題
+              </Button>
+              <Button as={Link} to="/wrong-review">
+                複習錯題
+              </Button>
+              <Button as={Link} to="/growth" variant="ghost">
+                查看成長
+              </Button>
+              <Button as={Link} to={recommendation.primaryActionPath} variant="secondary">
+                {recommendation.primaryActionLabel}
+              </Button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button as={Link} to={`/quiz/${encodeURIComponent(subject)}${retrySearch}`} className="w-full sm:w-auto">
               再做一次單科測驗
             </Button>
-            <Button as={Link} to="/" variant="secondary" className="w-full sm:w-auto">
-              回首頁
+            <Button as={Link} to="/radiographer" variant="secondary" className="w-full sm:w-auto">
+              回到科目
             </Button>
           </div>
 

@@ -4,6 +4,7 @@ const EXAM_RESULT_KEY_PREFIX = 'radiographer_exam_bank_exam_result'
 const EXAM_DATE_KEY = 'radiographer_exam_bank_exam_date'
 const LEGACY_EXAM_DATE_KEY = 'exam_date'
 const DAILY_GOAL_KEY = 'radiographer_exam_bank_daily_goal'
+const PRACTICE_YEAR_RANGE_KEY = 'radiographer_exam_bank_practice_year_range'
 const STUDY_STATS_KEY = 'radiographer_exam_bank_study_stats'
 const DAILY_WRONG_QUESTIONS_KEY = 'radiographer_exam_bank_daily_wrong_questions'
 const MOCK_EXAM_RESULTS_KEY = 'radiographer_exam_bank_mock_exam_results'
@@ -24,6 +25,7 @@ const USER_PROGRESS_BASE_KEYS = [
   EXAM_RESULT_KEY_PREFIX,
   EXAM_DATE_KEY,
   DAILY_GOAL_KEY,
+  PRACTICE_YEAR_RANGE_KEY,
   STUDY_STATS_KEY,
   DAILY_WRONG_QUESTIONS_KEY,
   MOCK_EXAM_RESULTS_KEY,
@@ -1563,6 +1565,29 @@ export function setDailyGoal(goal) {
   const normalizedGoal = clampDailyGoal(goal)
   writeStorageValue(DAILY_GOAL_KEY, normalizedGoal)
   return normalizedGoal
+}
+
+export function getPracticeYearRange() {
+  const parsed = readStorageValue(PRACTICE_YEAR_RANGE_KEY, {})
+  const startYear = Number(parsed?.startYear || 100)
+  const endYear = Number(parsed?.endYear || 115)
+
+  return {
+    startYear: Number.isFinite(startYear) ? startYear : 100,
+    endYear: Number.isFinite(endYear) ? Math.max(startYear, endYear) : 115,
+  }
+}
+
+export function setPracticeYearRange(nextRange = {}) {
+  const startYear = Number(nextRange.startYear || 100)
+  const endYear = Number(nextRange.endYear || 115)
+  const normalizedRange = {
+    startYear: Number.isFinite(startYear) ? startYear : 100,
+    endYear: Number.isFinite(endYear) ? Math.max(startYear, endYear) : 115,
+  }
+
+  writeStorageValue(PRACTICE_YEAR_RANGE_KEY, normalizedRange)
+  return normalizedRange
 }
 
 export function getStudyStats() {

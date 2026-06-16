@@ -1,44 +1,26 @@
 import { Link } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import SeoMeta from '../components/SeoMeta'
+import StudyStatusStrip from '../components/StudyStatusStrip'
+import { EXAM_SUBJECTS } from '../constants/subjects'
 import {
-  getPersonalGrowthRecords,
   getSevenDayGrowthData,
   getSubjectPowerStats,
-  getWrongClearanceSummary,
 } from '../utils/growthUtils'
+import {
+  getStudyActionRecommendation,
+  getTodayFeedbackSummary,
+  getWrongQuestionStatusSummary,
+} from '../utils/recommendationUtils'
 
-function EmptyState({ title, description, actionLabel, actionTo }) {
+function CoreMetric({ label, value, hint }) {
   return (
-    <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
-      <h3 className="text-lg font-bold text-slate-950">{title}</h3>
-      <p className="mt-3 text-sm leading-relaxed text-slate-600">{description}</p>
-      {actionLabel && actionTo && (
-        <div className="mt-5">
-          <Button as={Link} to={actionTo}>
-            {actionLabel}
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function MetricBadge({ label, value, hint, tone = 'slate' }) {
-  const toneMap = {
-    slate: 'border-slate-200 bg-slate-50 text-slate-900',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    blue: 'border-blue-200 bg-blue-50 text-blue-800',
-    amber: 'border-amber-200 bg-amber-50 text-amber-800',
-    rose: 'border-rose-200 bg-rose-50 text-rose-800',
-  }
-
-  return (
-    <article className={`rounded-[1.25rem] border p-4 shadow-sm ${toneMap[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-75">{label}</p>
-      <p className="mt-2 text-2xl font-black">{value}</p>
-      {hint ? <p className="mt-1 text-xs opacity-75">{hint}</p> : null}
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
+      {hint ? <p className="mt-2 text-sm text-slate-500">{hint}</p> : null}
     </article>
   )
 }
@@ -46,309 +28,170 @@ function MetricBadge({ label, value, hint, tone = 'slate' }) {
 function GrowthPage() {
   const sevenDayTrend = getSevenDayGrowthData()
   const subjectPower = getSubjectPowerStats()
-  const wrongClearance = getWrongClearanceSummary()
-  const personalRecords = getPersonalGrowthRecords()
-  const weakestSubjectLabel = subjectPower.weakestSubject?.subject || '尚待累積'
-  const weakestSubjectHint = subjectPower.weakestSubject
-    ? `${subjectPower.weakestSubject.accuracy}% 正確率`
-    : '每科完成 10 題後顯示'
+  const wrongSummary = getWrongQuestionStatusSummary()
+  const recommendation = getStudyActionRecommendation()
+  const todayFeedback = getTodayFeedbackSummary()
+  const weakestSubject = subjectPower.weakestSubject
+  const subjectRows = EXAM_SUBJECTS.map((subject) => {
+    const row = subjectPower.rows.find((item) => item.subject === subject.name)
+    return {
+      name: subject.name,
+      accuracy: row?.accuracy ?? null,
+      answeredCount: row?.answeredCount ?? 0,
+      needsFocus: Boolean(weakestSubject && weakestSubject.subject === subject.name),
+    }
+  })
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-6 md:py-8">
       <SeoMeta
         title="我的成長｜刷題紀錄、科目戰力與錯題清除"
-        description="我的成長頁可視覺化呈現最近 7 天作答狀況、科目戰力、錯題清除進度與個人紀錄，協助考生追蹤近期刷題表現。"
+        description="我的成長頁呈現本週作答、目前正確率、待複習錯題與下一步學習建議。"
         canonicalPath="/growth"
       />
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <Navbar subtitle="My Growth" title="我的成長" />
+      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+        <BackLink label="返回首頁" fallbackTo="/" />
+        <Navbar subtitle="我的成長" title="下一步該練什麼？" />
+        <StudyStatusStrip compact />
 
-        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="flex flex-col gap-6">
-            <div>
-              <h2 className="text-2xl font-black text-slate-950">追蹤最近作答節奏、正確率與弱點科目。</h2>
-              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
-                這裡只看自己的進步，不和其他人比較。重點是確認最近有沒有持續練習、哪些科目需要加強，以及錯題是否慢慢被清掉。
-              </p>
-            </div>
+        <section className="grid gap-3 md:grid-cols-3">
+          <CoreMetric label="本週作答" value={`${sevenDayTrend.totalAnswered} 題`} hint="最近 7 天累積" />
+          <CoreMetric
+            label="目前正確率"
+            value={sevenDayTrend.totalAnswered > 0 ? `${sevenDayTrend.averageAccuracy}%` : '—'}
+            hint={sevenDayTrend.totalAnswered > 0 ? '最近 7 天平均' : '完成作答後顯示'}
+          />
+          <CoreMetric label="待複習錯題" value={`${wrongSummary.dueWrongCount} 題`} hint="今天建議先處理" />
+        </section>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricBadge
-                label="本週總刷題"
-                value={`${sevenDayTrend.totalAnswered} 題`}
-                hint="最近 7 天累積"
-                tone="blue"
-              />
-              <MetricBadge
-                label="連續刷題"
-                value={`${sevenDayTrend.streak} 天`}
-                hint={sevenDayTrend.streak > 0 ? '持續累積中' : '今天開始也算'}
-                tone="emerald"
-              />
-              <MetricBadge
-                label="高風險錯題"
-                value={`${wrongClearance.highRiskCount} 題`}
-                hint="仍需回頭複習"
-                tone={wrongClearance.highRiskCount > 0 ? 'rose' : 'slate'}
-              />
-              <MetricBadge
-                label="最需加強科目"
-                value={weakestSubjectLabel}
-                hint={weakestSubjectHint}
-                tone={subjectPower.weakestSubject ? 'amber' : 'slate'}
-              />
-            </div>
+        <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 shadow-sm md:p-6">
+          <h2 className="text-xl font-black text-slate-950">下一步建議</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-700">{recommendation.description}</p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <Button as={Link} to={recommendation.primaryActionPath}>
+              {recommendation.primaryActionLabel}
+            </Button>
+            {recommendation.secondaryActionPath && recommendation.secondaryActionLabel ? (
+              <Button as={Link} to={recommendation.secondaryActionPath} variant="secondary">
+                {recommendation.secondaryActionLabel}
+              </Button>
+            ) : null}
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-2">
-          <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">7 日概況</p>
-                <h3 className="mt-2 text-2xl font-black text-slate-950">最近 7 天作答概況</h3>
-                <p className="mt-2 text-sm text-slate-600">快速確認最近哪幾天有刷題、每天完成題數，以及整體正確率表現。</p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-slate-950">今日作答回饋</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-700">{todayFeedback.summary}</p>
+          {todayFeedback.focusItems.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {todayFeedback.focusItems.map((item) => (
+                <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <p className="mt-3 text-sm font-semibold text-slate-700">{todayFeedback.nextStep}</p>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-black text-slate-950">錯題狀態</h2>
+                <Button as={Link} to="/wrong-review" variant="secondary">
+                  複習錯題
+                </Button>
+              </div>
+            <p className="mt-3 text-sm leading-7 text-slate-700">{wrongSummary.conclusion}</p>
+            <div className="mt-4 grid gap-3">
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-600">待複習</span>
+                <span className="text-lg font-black text-slate-950">{wrongSummary.dueWrongCount} 題</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-600">高風險</span>
+                <span className="text-lg font-black text-slate-950">{wrongSummary.highRiskCount} 題</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-600">已清除</span>
+                <span className="text-lg font-black text-slate-950">{wrongSummary.clearedCount} 題</span>
+              </div>
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-600">今日新增 / 已複習</span>
+                <span className="text-lg font-black text-slate-950">{wrongSummary.todayWrongCount} / {wrongSummary.todayReviewedCount}</span>
               </div>
             </div>
-
-            {!sevenDayTrend.hasEnoughData ? (
-              <div className="mt-6">
-                <EmptyState
-                  title="最近 7 天尚無作答紀錄"
-                  description="開始刷題後，這裡會顯示你每天的作答題數與正確率變化。"
-                  actionLabel="開始刷題"
-                  actionTo="/"
-                />
-              </div>
-            ) : (
-              <div className="mt-8">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <MetricBadge
-                    label="本週作答"
-                    value={`${sevenDayTrend.totalAnswered} 題`}
-                    hint="最近 7 天累積"
-                    tone="blue"
-                  />
-                  <MetricBadge
-                    label="活躍天數"
-                    value={`${sevenDayTrend.activeDays} 天`}
-                    hint={sevenDayTrend.activeDays > 0 ? '有作答即算活躍' : '尚未開始'}
-                    tone="emerald"
-                  />
-                  <MetricBadge
-                    label="平均正確率"
-                    value={`${sevenDayTrend.averageAccuracy}%`}
-                    hint={sevenDayTrend.totalAnswered > 0 ? '以最近 7 天整體作答計算' : '尚無資料'}
-                    tone="amber"
-                  />
-                </div>
-
-                <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4 md:p-5">
-                  <div className="grid grid-cols-7 items-end gap-2 md:gap-3">
-                  {sevenDayTrend.days.map((day) => {
-                    const barHeight =
-                      sevenDayTrend.maxAnsweredCount > 0
-                        ? Math.max(14, Math.round((day.answeredCount / sevenDayTrend.maxAnsweredCount) * 112))
-                        : 14
-                    const accuracyDotBottom = Math.max(12, Math.min(112, Math.round((day.accuracy / 100) * 112)))
-
-                    return (
-                      <div key={day.dateKey} className="flex min-w-0 flex-col items-center gap-3">
-                        <div className="relative flex h-36 w-full items-end justify-center rounded-2xl border border-slate-200 bg-white">
-                          <div
-                            className="w-7 rounded-t-2xl bg-blue-500 transition-all duration-700 md:w-8"
-                            style={{ height: `${barHeight}px` }}
-                            title={`作答 ${day.answeredCount} 題`}
-                          />
-                          {day.hasActivity ? (
-                            <span
-                              className="absolute h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow-sm"
-                              style={{ bottom: `${accuracyDotBottom}px` }}
-                              title={`正確率 ${day.accuracy}%`}
-                            />
-                          ) : null}
-                        </div>
-                        <div className="text-center text-[11px] text-slate-500 md:text-xs">
-                          <p>{day.label}</p>
-                          <p className="mt-1 font-semibold text-slate-700">{day.answeredCount} 題</p>
-                          <p className="mt-1 text-[10px] text-slate-500 md:text-[11px]">
-                            {day.hasActivity ? `${day.accuracy}%` : '—'}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-sm bg-blue-500" />
-                    作答題數
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                    正確率
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-[1.25rem] border border-blue-100 bg-blue-50/70 px-4 py-3">
-                  <p className="text-sm font-medium leading-relaxed text-slate-700">{sevenDayTrend.insight}</p>
-                </div>
-              </div>
-            )}
           </article>
 
-          <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">科目戰力</p>
-                <h3 className="mt-2 text-2xl font-black text-slate-950">各科正確率概況</h3>
-              </div>
-              {subjectPower.weakestSubject ? (
-                <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                  最需加強：{subjectPower.weakestSubject.subject}
-                </div>
-              ) : null}
-            </div>
-
-            {!subjectPower.hasEnoughData ? (
-              <div className="mt-6">
-                <EmptyState
-                  title="每科完成 10 題後顯示戰力"
-                  description="累積足夠作答後，這裡會從高到低整理各科正確率與需要加強的科目。"
-                  actionLabel="開始刷題"
-                  actionTo="/"
-                />
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {subjectPower.rows.map((row) => (
-                  <Link
-                    key={row.subject}
-                    to={`/quiz/${encodeURIComponent(row.subject)}`}
-                    className="block rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-slate-900">{row.subject}</p>
-                          {row.needsFocus ? (
-                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                              加強
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${
-                              row.needsFocus ? 'bg-amber-500' : 'bg-blue-600'
-                            }`}
-                            style={{ width: `${Math.max(8, row.accuracy)}%` }}
-                          />
-                        </div>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-black text-slate-950">各科狀況</h2>
+            <div className="mt-4 space-y-3">
+              {subjectRows.map((row) => (
+                <Link
+                  key={row.name}
+                  to={`/quiz/${encodeURIComponent(row.name)}`}
+                  className="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:bg-white"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900">{row.name}</p>
+                        {row.needsFocus ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                            需加強
+                          </span>
+                        ) : null}
                       </div>
-                      <div className="text-left sm:min-w-[76px] sm:text-right">
-                        <p className="text-lg font-black text-slate-950">{row.accuracy}%</p>
-                        <p className="text-xs text-slate-500">{row.answeredCount} 題</p>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className={`h-full rounded-full ${row.needsFocus ? 'bg-amber-500' : 'bg-blue-600'}`}
+                          style={{ width: `${row.accuracy === null ? 0 : Math.max(8, row.accuracy)}%` }}
+                        />
                       </div>
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">錯題清除</p>
-                <h3 className="mt-2 text-2xl font-black text-slate-950">錯題變熟的進度</h3>
-              </div>
-              <Button as={Link} to="/wrong-book" variant="secondary">
-                複習錯題
-              </Button>
+                    <div className="w-20 text-right">
+                      <p className="text-lg font-black text-slate-950">{row.accuracy === null ? '--' : `${row.accuracy}%`}</p>
+                      <p className="text-xs text-slate-500">{row.answeredCount > 0 ? `${row.answeredCount} 題` : '尚無資料'}</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
+          </article>
+        </section>
 
-            {!wrongClearance.hasData ? (
-              <div className="mt-6">
-                <EmptyState
-                  title="產生錯題後可追蹤清除率"
-                  description="當某題曾經答錯，後續連續答對 2 次後，這裡就會視為已清除。"
-                  actionLabel="開始刷題"
-                  actionTo="/"
-                />
-              </div>
-            ) : (
-              <div className="mt-8 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="flex items-center justify-center">
-                  <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-slate-100">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">最近 7 天</h2>
+              <p className="mt-1 text-sm text-slate-500">{sevenDayTrend.insight}</p>
+            </div>
+            {sevenDayTrend.totalAnswered === 0 ? (
+              <Button as={Link} to="/radiographer" variant="secondary">
+                開始刷題
+              </Button>
+            ) : null}
+          </div>
+          {sevenDayTrend.totalAnswered > 0 ? (
+            <div className="mt-4 grid grid-cols-7 gap-2">
+              {sevenDayTrend.days.map((day) => (
+                <div key={day.dateKey} className="text-center">
+                  <div className="flex h-20 items-end justify-center rounded-lg bg-slate-50 px-1 py-2">
                     <div
-                      className="absolute inset-0 rounded-full"
+                      className="w-5 rounded-t bg-blue-600"
                       style={{
-                        background: `conic-gradient(#10b981 ${wrongClearance.clearanceRate * 3.6}deg, #fecaca ${wrongClearance.clearanceRate * 3.6}deg 360deg)`,
+                        height: `${sevenDayTrend.maxAnsweredCount > 0
+                          ? Math.max(6, Math.round((day.answeredCount / sevenDayTrend.maxAnsweredCount) * 56))
+                          : 0}px`,
                       }}
                     />
-                    <div className="absolute inset-4 rounded-full bg-white" />
-                    <div className="relative text-center">
-                      <p className="text-4xl font-black text-slate-950">{wrongClearance.clearanceRate}%</p>
-                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">清除率</p>
-                    </div>
                   </div>
+                  <p className="mt-1 text-[11px] text-slate-500">{day.label}</p>
+                  <p className="text-xs font-bold text-slate-700">{day.answeredCount}</p>
                 </div>
-
-                <div className="grid gap-4 content-start">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <MetricBadge label="本週已清除" value={`${wrongClearance.weeklyClearedCount}`} tone="emerald" />
-                    <MetricBadge label="高風險錯題" value={`${wrongClearance.highRiskCount}`} tone="rose" />
-                  </div>
-                  <p className="text-sm leading-relaxed text-slate-600">
-                    目前已清除 {wrongClearance.clearedCount} 題，仍有 {wrongClearance.highRiskCount} 題需要持續回頭練習。
-                  </p>
-                </div>
-              </div>
-            )}
-          </article>
-
-          <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">個人紀錄</p>
-              <h3 className="mt-2 text-2xl font-black text-slate-950">自己的最佳表現</h3>
+              ))}
             </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <MetricBadge
-                label="單日最高刷題"
-                value={personalRecords.bestDailyAnswered > 0 ? personalRecords.bestDailyAnswered : '—'}
-                hint={personalRecords.bestDailyAnswered > 0 ? '單日最高' : '開始累積'}
-                tone={personalRecords.bestDailyAnswered > 0 ? 'blue' : 'slate'}
-              />
-              <MetricBadge
-                label="最高正確率"
-                value={personalRecords.bestAccuracy > 0 ? `${personalRecords.bestAccuracy}%` : '—'}
-                hint={personalRecords.bestAccuracy > 0 ? '單日最佳' : '開始累積'}
-                tone={personalRecords.bestAccuracy > 0 ? 'emerald' : 'slate'}
-              />
-              <MetricBadge
-                label="最長連續刷題"
-                value={personalRecords.longestStreak > 0 ? `${personalRecords.longestStreak} 天` : '—'}
-                hint={personalRecords.longestStreak > 0 ? '最長紀錄' : '開始累積'}
-                tone={personalRecords.longestStreak > 0 ? 'amber' : 'slate'}
-              />
-              <MetricBadge
-                label="累積清除錯題"
-                value={personalRecords.totalClearedWrong > 0 ? personalRecords.totalClearedWrong : '—'}
-                hint={personalRecords.totalClearedWrong > 0 ? '已掌握' : '開始累積'}
-                tone={personalRecords.totalClearedWrong > 0 ? 'emerald' : 'slate'}
-              />
-              <MetricBadge
-                label="最高模擬考分數"
-                value={personalRecords.highestMockScore > 0 ? `${personalRecords.highestMockScore.toFixed(2)} 分` : '—'}
-                hint={personalRecords.highestMockScore > 0 ? '單科最高' : '開始累積'}
-                tone={personalRecords.highestMockScore > 0 ? 'blue' : 'slate'}
-              />
-            </div>
-          </article>
+          ) : null}
         </section>
       </div>
     </main>

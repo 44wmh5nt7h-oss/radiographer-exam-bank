@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import BackLink from '../components/BackLink'
 import Button from '../components/Button'
 import Navbar from '../components/Navbar'
 import SeoMeta from '../components/SeoMeta'
@@ -8,13 +9,14 @@ import {
   clearWrongBook,
   extractQuestionTags,
   getBookmarkIds,
+  getTodayReviewedQuestionCount,
   getQuestionKey,
-  getTodayWrongQuestions,
   getWrongBookIds,
   getWrongBookItems,
   toggleBookmark,
   updateWrongQuestionStatus,
 } from '../utils/storageUtils'
+import { EBBINGHAUS_INTERVALS, getReviewStage, isMastered, isReviewDueToday } from '../utils/growthUtils'
 import { getCanonicalSubjectName, getWrongQuestionDetail } from '../utils/subjectUtils'
 import { loadQuestionsByKeys } from '../utils/questionDataLoader'
 
@@ -235,7 +237,7 @@ function WrongBookPage() {
     }
   }, [wrongQuestionIds])
 
-  const todayReviewedCount = getTodayWrongQuestions().length
+  const todayReviewedCount = getTodayReviewedQuestionCount()
   const recentAddedCount = useMemo(
     () =>
       getWrongBookItems().filter((item) => {
@@ -318,6 +320,7 @@ function WrongBookPage() {
         robots="noindex,nofollow"
       />
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <BackLink label="返回首頁" fallbackTo="/" />
         <Navbar subtitle="Wrong Answer Book" title="錯題本" />
 
         <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -330,7 +333,7 @@ function WrongBookPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button as={Link} to="/">
+              <Button as={Link} to="/radiographer">
                 開始單科測驗
               </Button>
               <Button type="button" variant="ghost" className="border-rose-200 bg-white text-rose-700 hover:border-rose-300 hover:bg-rose-50" onClick={handleClearWrongBook}>
@@ -407,7 +410,7 @@ function WrongBookPage() {
                   完成測驗後，答錯的題目會自動出現在這裡。
                 </p>
                 <div className="mt-6">
-                  <Button as={Link} to="/">
+                  <Button as={Link} to="/radiographer">
                     開始單科測驗
                   </Button>
                 </div>
@@ -431,13 +434,46 @@ function WrongBookPage() {
               const tags = extractQuestionTags(question).slice(0, 6)
               const displaySubject = getDisplaySubject(question) || normalizeQuestionSubject(question)
               const metadataLabel = formatQuestionMetadata(question)
+              const reviewStage = getReviewStage(questionKey)
+              const mastered = isMastered(questionKey)
+              const dueToday = isReviewDueToday(questionKey, question.createdAt || question.answeredAt || question.date)
 
               return (
                 <article
                   key={questionKey}
-                  className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6"
+                  className={`rounded-[1.75rem] border p-5 shadow-sm md:p-6 ${
+                    dueToday && !mastered
+                      ? 'border-amber-200 bg-amber-50/40'
+                      : 'border-slate-200 bg-white'
+                  }`}
                 >
                   <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {dueToday && !mastered ? (
+                        <span className="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                          建議複習時間：今天
+                        </span>
+                      ) : null}
+                      {mastered ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          已熟練
+                        </span>
+                      ) : null}
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                        複習進度 {Math.min(reviewStage, EBBINGHAUS_INTERVALS.length)}/{EBBINGHAUS_INTERVALS.length}
+                      </span>
+                      <div className="ml-auto flex flex-wrap gap-1.5">
+                        {EBBINGHAUS_INTERVALS.map((_, index) => (
+                          <span
+                            key={`${questionKey}-review-${index}`}
+                            className={`h-2 w-7 rounded-full ${
+                              index < reviewStage ? 'bg-emerald-500' : 'bg-slate-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
                       {displaySubject ? (
                         <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">{displaySubject}</span>
